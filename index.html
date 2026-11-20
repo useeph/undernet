@@ -212,6 +212,16 @@
   #bs-overlay .box{max-width:460px;width:100%;border-color:var(--purple)}
   #bs-overlay textarea{min-height:120px;font-size:11px;padding:8px}
   #bs-overlay button{width:100%;margin-top:8px}
+  /* ---------- PATRIOT AI ---------- */
+  #pa .chip-btn{font-size:11px;letter-spacing:1px;padding:6px 10px;background:var(--bg);
+    border:1px solid var(--purple-dim);color:var(--purple);cursor:pointer}
+  #pa .chip-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--bg)}
+  #pa .msg .act{display:inline-block;margin:6px 8px 0 0;font-size:11px;letter-spacing:1px;
+    color:var(--ok);cursor:pointer;text-decoration:underline}
+  #pa .post{border-bottom:1px dashed rgba(74,53,128,.4);padding:8px 0;font-size:12px;line-height:1.5}
+  #pa .post .ptype{color:var(--accent);font-size:10px;letter-spacing:1px}
+  #pa .post .pwho{color:#fff}
+  #pa .post .ploc{color:var(--purple);font-size:11px}
 </style>
 </head>
 <body>
@@ -225,6 +235,7 @@
     <button class="tab" data-app="panopticon">◉ PANOPTICON</button>
     <button class="tab" data-app="ration">▤ RATION</button>
     <button class="tab" data-app="blindspot">⌖ BLINDSPOT</button>
+    <button class="tab" data-app="patriot">✦ PATRIOT AI</button>
   </nav>
 </header>
 
@@ -490,6 +501,43 @@
   </div>
 </section>
 
+<!-- ==================== PATRIOT AI ==================== -->
+<section class="app" id="pa">
+  <div class="appline">PATRIOT AI — <b>on-device survival assistant</b> · no cloud. no logs. it dies with your battery.</div>
+  <div class="pagewrap"><div class="pageinner" style="max-width:640px">
+
+    <div class="box">
+      <div id="pa-chat" style="display:flex;flex-direction:column;gap:8px;min-height:160px;max-height:45vh;overflow-y:auto"></div>
+      <div id="pa-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input type="text" id="pa-input" placeholder="ask… e.g. who has insulin" autocomplete="off" style="flex:1;width:auto">
+        <button id="pa-send" style="width:auto;margin:0">ASK</button>
+      </div>
+    </div>
+
+    <div class="box">
+      <h2>&gt; BARTER BOARD — what the network is offering</h2>
+      <div id="pa-posts"></div>
+      <button id="pa-newpost" class="ghost" style="margin-top:10px">+ POST AN OFFER</button>
+      <div id="pa-postform" style="display:none">
+        <label>YOUR CALLSIGN</label>
+        <input id="pa-who" autocomplete="off">
+        <label>TYPE</label>
+        <select id="pa-type"><option value="trade">TRADE</option><option value="transport">TRANSPORT</option></select>
+        <label>YOU OFFER</label>
+        <input id="pa-offer" placeholder="e.g. 20L filtered water / seat in Friday convoy" autocomplete="off">
+        <label>YOU WANT</label>
+        <input id="pa-want" placeholder="e.g. antibiotics, fuel, meals" autocomplete="off">
+        <label>MEET AT</label>
+        <select id="pa-loc"></select>
+        <button id="pa-submit" style="margin-top:10px;width:100%">BROADCAST TO THE BOARD ▸</button>
+      </div>
+      <div class="hint" style="margin-top:8px">Postings travel peer-to-peer: EXPORT / IMPORT on BLINDSPOT carries the board between devices. All locations are a fictional overlay on campus buildings — worldbuilding, not real inventory.</div>
+    </div>
+
+  </div></div>
+</section>
+
 <div id="bs-overlay">
   <div class="box">
     <h2>&gt; IMPORT GRID — paste a comrade's export</h2>
@@ -525,6 +573,75 @@ const UN = {
 document.querySelectorAll('.tab').forEach(t =>
   t.addEventListener('click', () => UN.show(t.dataset.app)));
 addEventListener('hashchange', () => UN.show(location.hash.replace('#','')));
+
+/* ======================================================================
+   SHARED WORLD — fictional survival roles assigned to campus buildings,
+   plus the peer-shared barter board. (Worldbuilding, not real inventory.)
+====================================================================== */
+const WORLD = [
+  { id:'commons',   name:'THE COMMONS (Johnson Center)', role:'food',      lat:38.8298, lng:-77.3085, note:'hot meals twice daily, bring your ration card', stock:'HIGH' },
+  { id:'southside', name:'SOUTHSIDE CANTEEN',            role:'food',      lat:38.8282, lng:-77.3108, note:'soup line opens after dark', stock:'MED' },
+  { id:'ikes',      name:"IKE'S RATION POST",            role:'food',      lat:38.8270, lng:-77.3135, note:'dry goods, one pack per person per day', stock:'LOW' },
+  { id:'fenwick',   name:'FENWICK SHELTER (Library)',    role:'shelter',   lat:38.8302, lng:-77.3101, note:'400 cots, quiet floors, no questions asked', stock:'OPEN' },
+  { id:'arena',     name:'EAGLEBANK REFUGE (Arena)',     role:'shelter',   lat:38.8265, lng:-77.3199, note:'mass shelter, medics on site', stock:'OPEN' },
+  { id:'planetary', name:'PLANETARY MED BAY',            role:'meds',      lat:38.8309, lng:-77.3075, note:'antibiotics + insulin, MED-flag households first', stock:'MED' },
+  { id:'krug',      name:'KRUG CLINIC',                  role:'meds',      lat:38.8313, lng:-77.3119, note:'wound care and trauma, open 24h', stock:'HIGH' },
+  { id:'nguyen',    name:'NGUYEN WORKSHOP',              role:'market',    lat:38.8277, lng:-77.3160, note:'repairs, batteries, radios — barter only', stock:'MED' },
+  { id:'horizon',   name:'HORIZON MARKET',               role:'market',    lat:38.8327, lng:-77.3098, note:'open-air barter market, dawn to curfew', stock:'HIGH' },
+  { id:'merten',    name:'MERTEN WATER POINT',           role:'water',     lat:38.8334, lng:-77.3127, note:'filtered water, 8L per household per day', stock:'HIGH' },
+  { id:'hub',       name:'THE HUB DEPOT',                role:'transport', lat:38.8291, lng:-77.3059, note:'convoy sign-ups and courier dispatch', stock:'—' },
+];
+const ROLE_STYLE = {
+  food:      { icon:'◆', color:'#f5e9a8', label:'FOOD' },
+  shelter:   { icon:'⌂', color:'#6effa3', label:'SHELTER' },
+  meds:      { icon:'✚', color:'#ff5c7a', label:'MEDS' },
+  market:    { icon:'⇄', color:'#f5e9a8', label:'MARKET' },
+  water:     { icon:'◉', color:'#7c5cff', label:'WATER' },
+  transport: { icon:'➤', color:'#6effa3', label:'TRANSPORT' },
+};
+const worldById = id => WORLD.find(w => w.id === id) || WORLD[8];
+
+const SEED_POSTS = [
+  { id:'sp1', who:'RAVEN-2214', type:'trade',     offer:'3 insulin doses',                             want:'9V batteries or a working radio', loc:'horizon' },
+  { id:'sp2', who:'ONYX-77',    type:'trade',     offer:'20L filtered water',                          want:'antibiotics',                     loc:'merten' },
+  { id:'sp3', who:'NOMAD-K2',   type:'transport', offer:'seat in convoy to Vienna metro, Friday dawn', want:'2 fuel cans',                     loc:'hub' },
+  { id:'sp4', who:'CIPHER-9',   type:'trade',     offer:'solar charger, working',                      want:'12 cans of protein',              loc:'nguyen' },
+  { id:'sp5', who:'ECHO-D4',    type:'transport', offer:'bike courier, anywhere on campus',            want:'meals',                           loc:'commons' },
+];
+const Market = {
+  posts: [],
+  load(){
+    try{ const p = JSON.parse(localStorage.getItem('undernet-market-v1')); if (Array.isArray(p) && p.length) this.posts = p; }catch(e){}
+    if (!this.posts.length) this.posts = SEED_POSTS.slice();
+    this.save();
+  },
+  save(){ try{ localStorage.setItem('undernet-market-v1', JSON.stringify(this.posts)); }catch(e){} },
+  add(p){
+    p.id = Date.now() + '-' + Math.random().toString(36).slice(2,6);
+    this.posts.unshift(p); this.save();
+    if (UN.redrawPosts) UN.redrawPosts();
+    if (UN.renderBoard) UN.renderBoard();
+  },
+  merge(arr){
+    const have = new Set(this.posts.map(p => p.id));
+    let n = 0;
+    for (const p of (arr || [])){
+      if (!p || !p.id || have.has(String(p.id)) || typeof p.offer !== 'string') continue;
+      this.posts.push({ id:String(p.id), who:String(p.who || 'UNKNOWN').slice(0,24),
+        type: p.type === 'transport' ? 'transport' : 'trade',
+        offer:String(p.offer).slice(0,90), want:String(p.want || '').slice(0,90),
+        loc: WORLD.some(w => w.id === p.loc) ? p.loc : 'horizon' });
+      n++;
+    }
+    if (n){ this.save(); if (UN.redrawPosts) UN.redrawPosts(); if (UN.renderBoard) UN.renderBoard(); }
+    return n;
+  }
+};
+Market.load();
+UN.focus = (lat, lng) => {
+  UN.show('blindspot');
+  setTimeout(() => { if (bsMap){ bsMap.invalidateSize(); bsMap.setView([lat, lng], 17); } }, 250);
+};
 
 /* ======================================================================
    MODULE: DEADDROP
@@ -1229,12 +1346,137 @@ UN.register('ration', $('rt'), function(){
     catch(e){ $('copy-plan').textContent = 'COPY BLOCKED'; }
     setTimeout(() => $('copy-plan').textContent = 'COPY ALLOCATION ORDER', 1600);
   });
+  /* let PATRIOT AI read sector supply status */
+  UN.rationStatus = () => compute().map(d =>
+    d.r.name + ': ' + (isFinite(d.days) ? d.days.toFixed(1) : '∞') + ' days of supply · ration level ' +
+    Math.round(d.factor * 100) + '% · ' + statusOf(d.days)[1]).join('\n');
   render();
 });
 
 /* ======================================================================
    MODULE: BLINDSPOT
 ====================================================================== */
+/* ======================================================================
+   MODULE: PATRIOT AI — on-device assistant (rule-based intent engine
+   over the local resource map, barter board and ration ledger)
+====================================================================== */
+UN.register('patriot', $('pa'), function(){
+  const chat = $('pa-chat');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function say(text, who, locs){
+    const d = document.createElement('div');
+    d.className = 'msg ' + who;
+    const body = document.createElement('div');
+    body.textContent = text;
+    d.appendChild(body);
+    for (const w of (locs || [])){
+      const a = document.createElement('span');
+      a.className = 'act';
+      a.textContent = '⌖ ' + w.name.split(' (')[0];
+      a.addEventListener('click', () => UN.focus(w.lat, w.lng));
+      d.appendChild(a);
+    }
+    chat.appendChild(d);
+    chat.scrollTop = chat.scrollHeight;
+  }
+  const byRole = r => WORLD.filter(w => w.role === r);
+  const listOf = ws => ws.map(w => '■ ' + w.name + ' — ' + w.note + ' [' + w.stock + ']').join('\n');
+
+  const INTENTS = [
+    ['food',      ['food','eat','hungry','meal','kitchen','canteen','bread','starv']],
+    ['water',     ['water','thirst','drink']],
+    ['meds',      ['med','pharm','doctor','sick','hurt','injur','pill','insulin','antibiot','clinic','health','first aid','wound']],
+    ['shelter',   ['shelter','sleep','stay','cot','rest','refuge','night','safe place']],
+    ['transport', ['ride','transport','convoy','travel','courier','evacuat','bus','car','get out','move','leave']],
+    ['trade',     ['trade','exchange','barter','swap','market','offer','who has','need','buy','sell','looking for']],
+    ['rations',   ['ration','supply status','stock','days left','how long','running out','manage']],
+    ['route',     ['route','path','way to','avoid','camera','patrol','checkpoint','walk','get to','safest']],
+  ];
+  function answer(q){
+    const t = ' ' + q.toLowerCase() + ' ';
+    let best = null, bs = 0;
+    for (const [name, kws] of INTENTS){
+      const s = kws.reduce((a, k) => a + (t.includes(k) ? 1 : 0), 0);
+      if (s > bs){ bs = s; best = name; }
+    }
+    const R = (text, locs) => ({ text, locs });
+    if (best === 'trade'){
+      const stop = new Set(['the','and','for','with','need','want','have','who','has','trade','looking','what','where','can','find','some','any','you']);
+      const toks = t.split(/[^a-z0-9]+/).filter(x => x.length > 2 && !stop.has(x));
+      const hits = Market.posts.filter(p => toks.some(x => (p.offer + ' ' + p.want).toLowerCase().includes(x)));
+      if (hits.length) return R('Matching postings on the board:\n' + hits.slice(0, 4).map(p =>
+        '⇄ ' + p.who + ' offers ' + p.offer + ' · wants ' + p.want + ' · meet @ ' + worldById(p.loc).name).join('\n'),
+        hits.slice(0, 4).map(p => worldById(p.loc)));
+      return R('No direct match. The board holds ' + Market.posts.length + ' open postings — scroll down to browse, or broadcast your own offer.', byRole('market'));
+    }
+    switch (best){
+      case 'food':    return R('Food points, by stock:\n' + listOf(byRole('food')), byRole('food'));
+      case 'water':   return R('Water:\n' + listOf(byRole('water')), byRole('water'));
+      case 'meds':    return R('Medical:\n' + listOf(byRole('meds')) + '\n\nMED-flagged households get priority — set the flag in the RATION tab.', byRole('meds'));
+      case 'shelter': return R('Shelter tonight:\n' + listOf(byRole('shelter')), byRole('shelter'));
+      case 'transport': {
+        const rides = Market.posts.filter(p => p.type === 'transport');
+        return R('Transport:\n' + listOf(byRole('transport')) +
+          (rides.length ? '\n\nRides on the board:\n' + rides.slice(0, 4).map(p => '➤ ' + p.who + ': ' + p.offer + ' (wants ' + p.want + ')').join('\n') : ''),
+          byRole('transport'));
+      }
+      case 'rations': {
+        const m = UN.mods.ration;
+        if (m && !m.started){ m.started = true; try{ m.init(); }catch(e){} }
+        return R(UN.rationStatus ? 'SECTOR 7 SUPPLY STATUS:\n' + UN.rationStatus() + '\n\nTune the horizon and stress-test shocks in the RATION tab.' : 'Ration engine offline.', []);
+      }
+      case 'route': return R('Use BLIND ROUTE on the BLINDSPOT map: tap ◬, tap where you are, then tap where you\'re going — it plots the path with the least surveillance coverage and tells you how much exposure it saved.', [worldById('commons')]);
+    }
+    return R('I\'m PATRIOT AI — I run entirely on this device. Try:\n■ where can I eat tonight\n■ who has insulin\n■ I need a ride off campus\n■ how long will our water last\n■ safest route across campus', []);
+  }
+  function ask(q){
+    if (!q.trim()) return;
+    say(q, 'me');
+    setTimeout(() => { const a = answer(q); say(a.text, 'them', a.locs); }, 250);
+  }
+  $('pa-send').addEventListener('click', () => { ask($('pa-input').value); $('pa-input').value = ''; });
+  $('pa-input').addEventListener('keydown', e => { if (e.key === 'Enter'){ ask($('pa-input').value); $('pa-input').value = ''; } });
+  ['WHERE CAN I EAT?','FIND MEDS','SHELTER TONIGHT','WHO HAS RIDES?','RATION STATUS','SAFEST ROUTE'].forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'chip-btn'; b.textContent = c;
+    b.addEventListener('click', () => ask(c));
+    $('pa-chips').appendChild(b);
+  });
+
+  /* barter board */
+  function renderBoard(){
+    $('pa-posts').innerHTML = Market.posts.map(p => {
+      const w = worldById(p.loc);
+      return '<div class="post"><span class="ptype">[' + (p.type === 'transport' ? 'TRANSPORT' : 'TRADE') + ']</span> ' +
+        '<span class="pwho">' + esc(p.who) + '</span> offers <span style="color:var(--accent)">' + esc(p.offer) + '</span>' +
+        ' ⇄ wants ' + esc(p.want) + '<br><span class="ploc">meet @ ' + w.name + '</span></div>';
+    }).join('');
+  }
+  UN.renderBoard = renderBoard;
+  renderBoard();
+  WORLD.forEach(w => {
+    const o = document.createElement('option');
+    o.value = w.id; o.textContent = w.name;
+    $('pa-loc').appendChild(o);
+  });
+  $('pa-who').value = 'GHOST-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+  $('pa-newpost').addEventListener('click', () => {
+    const f = $('pa-postform');
+    f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  });
+  $('pa-submit').addEventListener('click', () => {
+    const offer = $('pa-offer').value.trim(), want = $('pa-want').value.trim();
+    if (!offer || !want) return toast('OFFER AND WANT ARE BOTH REQUIRED');
+    Market.add({ who: ($('pa-who').value.trim() || 'UNKNOWN').slice(0, 24), type: $('pa-type').value,
+      offer: offer.slice(0, 90), want: want.slice(0, 90), loc: $('pa-loc').value });
+    $('pa-offer').value = ''; $('pa-want').value = '';
+    $('pa-postform').style.display = 'none';
+    toast('POSTED — TRAVELS WITH THE NEXT GRID EXPORT');
+  });
+
+  say('PATRIOT AI ONLINE — survival intel for the Sector 7 (campus) zone. Everything I know lives on this device: the resource map, the barter board, and your ration ledger. Nothing leaves it.\n\n(All locations are a fictional overlay on campus buildings.)', 'them');
+}, function onShow(){ $('pa-input').focus(); });
+
 let bsMap = null;
 UN.register('blindspot', $('bs'), function(){
   const KEY = 'blindspot-v1';
@@ -1473,16 +1715,18 @@ UN.register('blindspot', $('bs'), function(){
     }, () => toast('POSITION DENIED — good instinct.'));
   });
   $('export').addEventListener('click', async () => {
-    const data = JSON.stringify(points);
-    try { await navigator.clipboard.writeText(data); toast('GRID COPIED — ' + points.length + ' POINTS. PASS IT ON.'); }
+    const data = JSON.stringify({ v:2, points, posts: Market.posts });
+    try { await navigator.clipboard.writeText(data); toast('GRID COPIED — ' + points.length + ' POINTS + ' + Market.posts.length + ' POSTINGS. PASS IT ON.'); }
     catch(e){ $('import-text').value = data; $('bs-overlay').style.display = 'flex'; toast('CLIPBOARD BLOCKED — COPY MANUALLY'); }
   });
   $('import').addEventListener('click', () => { $('import-text').value=''; $('bs-overlay').style.display='flex'; });
   $('import-cancel').addEventListener('click', () => $('bs-overlay').style.display='none');
   $('import-go').addEventListener('click', () => {
     try {
-      const incoming = JSON.parse($('import-text').value);
-      if (!Array.isArray(incoming)) throw 0;
+      const raw = JSON.parse($('import-text').value);
+      const incoming = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.points) ? raw.points : null);
+      if (!incoming) throw 0;
+      const nPosts = Array.isArray(raw) ? 0 : Market.merge(raw.posts);
       let added = 0;
       const have = new Set(points.map(p => p.id));
       for (const p of incoming){
@@ -1494,7 +1738,7 @@ UN.register('blindspot', $('bs'), function(){
       }
       save(); refreshStats();
       $('bs-overlay').style.display = 'none';
-      toast('MERGED ' + added + ' NEW POINTS');
+      toast('MERGED ' + added + ' POINTS, ' + nPosts + ' POSTINGS');
     } catch(e){ toast('BAD GRID DATA'); }
   });
   $('wipe').addEventListener('click', () => {
@@ -1639,6 +1883,37 @@ UN.register('blindspot', $('bs'), function(){
   if (stored && stored.length) stored.forEach(p => { points.push(p); drawPoint(p); });
   else SEED.forEach((p, i) => addPoint({ id:'seed-'+i, ...p }, true));
   save(); refreshStats();
+
+  /* fictional survival world + peer-shared barter postings on the map */
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const worldLayer = L.layerGroup().addTo(map);
+  for (const w of WORLD){
+    const S = ROLE_STYLE[w.role];
+    L.marker([w.lat, w.lng], { icon: L.divIcon({ className:'',
+      html:'<div class="mark" style="color:' + S.color + ';font-size:16px">' + S.icon + '</div>',
+      iconSize:[16,16], iconAnchor:[8,8] }) })
+      .addTo(worldLayer)
+      .bindPopup('<div class="pp-type" style="color:' + S.color + '">' + S.icon + ' ' + w.name + '</div>' +
+        '<div class="pp-note">' + S.label + ' · ' + w.note + '</div>' +
+        '<div class="pp-note" style="color:var(--purple)">stock: ' + w.stock + ' · fictional overlay</div>');
+  }
+  const postsLayer = L.layerGroup().addTo(map);
+  function redrawPosts(){
+    postsLayer.clearLayers();
+    Market.posts.forEach((p, i) => {
+      const w = worldById(p.loc);
+      const ang = i * 2.4;
+      L.marker([w.lat + 0.00035 * Math.sin(ang), w.lng + 0.00045 * Math.cos(ang)],
+        { icon: L.divIcon({ className:'', html:'<div class="mark" style="color:#f5e9a8;font-size:12px">⇄</div>',
+          iconSize:[12,12], iconAnchor:[6,6] }) })
+        .addTo(postsLayer)
+        .bindPopup('<div class="pp-type">⇄ ' + (p.type === 'transport' ? 'TRANSPORT' : 'TRADE') + ' — ' + esc(p.who) + '</div>' +
+          '<div class="pp-note">offers: ' + esc(p.offer) + '<br>wants: ' + esc(p.want) + '</div>' +
+          '<div class="pp-note" style="color:var(--purple)">meet @ ' + w.name + '</div>');
+    });
+  }
+  UN.redrawPosts = redrawPosts;
+  redrawPosts();
 }, function onShow(){
   // Leaflet needs a size recalc whenever the tab becomes visible
   if (bsMap) setTimeout(() => bsMap.invalidateSize(), 60);
