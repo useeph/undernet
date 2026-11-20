@@ -212,7 +212,7 @@
   #bs-overlay .box{max-width:460px;width:100%;border-color:var(--purple)}
   #bs-overlay textarea{min-height:120px;font-size:11px;padding:8px}
   #bs-overlay button{width:100%;margin-top:8px}
-  /* ---------- PATRIOT AI ---------- */
+  /* ---------- LANTERN ---------- */
   #pa .chip-btn{font-size:11px;letter-spacing:1px;padding:6px 10px;background:var(--bg);
     border:1px solid var(--purple-dim);color:var(--purple);cursor:pointer}
   #pa .chip-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--bg)}
@@ -235,7 +235,7 @@
     <button class="tab" data-app="panopticon">◉ PANOPTICON</button>
     <button class="tab" data-app="ration">▤ RATION</button>
     <button class="tab" data-app="blindspot">⌖ BLINDSPOT</button>
-    <button class="tab" data-app="patriot">✦ PATRIOT AI</button>
+    <button class="tab" data-app="patriot">✦ LANTERN</button>
   </nav>
 </header>
 
@@ -501,9 +501,9 @@
   </div>
 </section>
 
-<!-- ==================== PATRIOT AI ==================== -->
+<!-- ==================== LANTERN ==================== -->
 <section class="app" id="pa">
-  <div class="appline">PATRIOT AI — <b>on-device survival assistant</b> · no cloud. no logs. it dies with your battery.</div>
+  <div class="appline">LANTERN — <b>on-device survival assistant</b> · no cloud. no logs. it dies with your battery.</div>
   <div class="pagewrap"><div class="pageinner" style="max-width:640px">
 
     <div class="box">
@@ -1346,7 +1346,7 @@ UN.register('ration', $('rt'), function(){
     catch(e){ $('copy-plan').textContent = 'COPY BLOCKED'; }
     setTimeout(() => $('copy-plan').textContent = 'COPY ALLOCATION ORDER', 1600);
   });
-  /* let PATRIOT AI read sector supply status */
+  /* let LANTERN read sector supply status */
   UN.rationStatus = () => compute().map(d =>
     d.r.name + ': ' + (isFinite(d.days) ? d.days.toFixed(1) : '∞') + ' days of supply · ration level ' +
     Math.round(d.factor * 100) + '% · ' + statusOf(d.days)[1]).join('\n');
@@ -1357,7 +1357,7 @@ UN.register('ration', $('rt'), function(){
    MODULE: BLINDSPOT
 ====================================================================== */
 /* ======================================================================
-   MODULE: PATRIOT AI — on-device assistant (rule-based intent engine
+   MODULE: LANTERN — on-device assistant (rule-based intent engine
    over the local resource map, barter board and ration ledger)
 ====================================================================== */
 UN.register('patriot', $('pa'), function(){
@@ -1427,7 +1427,7 @@ UN.register('patriot', $('pa'), function(){
       }
       case 'route': return R('Use BLIND ROUTE on the BLINDSPOT map: tap ◬, tap where you are, then tap where you\'re going — it plots the path with the least surveillance coverage and tells you how much exposure it saved.', [worldById('commons')]);
     }
-    return R('I\'m PATRIOT AI — I run entirely on this device. Try:\n■ where can I eat tonight\n■ who has insulin\n■ I need a ride off campus\n■ how long will our water last\n■ safest route across campus', []);
+    return R('I\'m LANTERN — I run entirely on this device. Try:\n■ where can I eat tonight\n■ who has insulin\n■ I need a ride off campus\n■ how long will our water last\n■ safest route across campus', []);
   }
   function ask(q){
     if (!q.trim()) return;
@@ -1474,7 +1474,7 @@ UN.register('patriot', $('pa'), function(){
     toast('POSTED — TRAVELS WITH THE NEXT GRID EXPORT');
   });
 
-  say('PATRIOT AI ONLINE — survival intel for the Sector 7 (campus) zone. Everything I know lives on this device: the resource map, the barter board, and your ration ledger. Nothing leaves it.\n\n(All locations are a fictional overlay on campus buildings.)', 'them');
+  say('LANTERN LIT — survival intel for the Sector 7 (campus) zone. Everything I know lives on this device: the resource map, the barter board, and your ration ledger. Nothing leaves it.\n\n(All locations are a fictional overlay on campus buildings.)', 'them');
 }, function onShow(){ $('pa-input').focus(); });
 
 let bsMap = null;
