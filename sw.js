@@ -1,5 +1,6 @@
 /* UNDERNET service worker — the suite opens even when the grid is down. */
-const CACHE = 'undernet-v1';
+const CACHE = 'undernet-v2';
+const TILES = 'undernet-tiles-v1';
 const CORE = [
   '.', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js',
@@ -15,14 +16,24 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    .then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== TILES).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = e.request.url;
   if (SKIP.test(url)){
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    /* map tiles & live data: serve from network, but keep a copy so the
+       map still draws when the grid is down */
+    e.respondWith(
+      caches.open(TILES).then(c => c.match(e.request).then(hit => {
+        const net = fetch(e.request).then(res => {
+          if (res && (res.ok || res.type === 'opaque')) c.put(e.request, res.clone()).catch(() => {});
+          return res;
+        }).catch(() => hit);
+        return navigator.onLine ? (net || hit) : (hit || net);
+      }))
+    );
     return;
   }
   const isPage = e.request.mode === 'navigate' || /index\.html(\?|$)/.test(url);

@@ -251,6 +251,37 @@
     text-decoration:underline;margin-right:8px}
   #pa .post .pstat{color:var(--accent);border:1px solid var(--accent);font-size:9px;
     letter-spacing:1px;padding:1px 5px}
+
+
+  /* ---------- GUIDED TOUR ---------- */
+  #tour{display:none;position:fixed;inset:0;z-index:4000;background:rgba(13,6,24,.88);
+    align-items:flex-end;justify-content:center;padding:18px}
+  #tour .tourcard{background:var(--panel);border:1px solid var(--purple);padding:16px;
+    max-width:460px;width:100%;box-shadow:0 0 40px rgba(124,92,255,.25)}
+  #tour .tourstep{font-size:10px;letter-spacing:2px;color:var(--purple)}
+  #tour .tourtitle{font-family:var(--display);font-size:26px;color:var(--accent);
+    letter-spacing:3px;line-height:1.1;margin:4px 0 8px}
+  #tour .tourbody{font-size:13px;line-height:1.6;color:var(--text)}
+  #tour-go{cursor:pointer;color:var(--purple)}
+  #tour-go:hover{color:var(--accent)}
+  /* ---------- DECOY: a plain calculator. nothing to see here. ---------- */
+  #decoy{display:none;position:fixed;inset:0;z-index:5000;background:#f2f2f6;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    align-items:center;justify-content:center;padding:16px}
+  #decoy .calc{width:100%;max-width:330px}
+  #decoy .calc-screen{background:#fff;border:1px solid #d8d8de;border-radius:10px;
+    padding:20px 16px;font-size:38px;text-align:right;color:#111;margin-bottom:12px;
+    overflow:hidden;text-overflow:ellipsis;min-height:80px;line-height:1.1}
+  #decoy .calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+  #decoy .ck{background:#fff;border:1px solid #d8d8de;border-radius:10px;padding:18px 0;
+    font-size:19px;color:#111;cursor:pointer;letter-spacing:0;font-family:inherit;width:auto;margin:0}
+  #decoy .ck:hover{background:#eaeaf0}
+  #decoy .ck.op{background:#e8e8ef;color:#333}
+  #decoy .ck.fn{background:#e8e8ef;color:#666;font-size:17px}
+  #decoy .ck.eq{background:#1a73e8;color:#fff;border-color:#1a73e8}
+  #decoy .ck.wide{grid-column:span 2}
+  #decoy-go{cursor:pointer;color:var(--purple)}
+  #decoy-go:hover{color:var(--accent)}
   /* ---------- THE WALL ---------- */
   #wl .card{border:1px solid var(--purple-dim);background:var(--panel);margin-bottom:14px}
   #wl .chead{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--purple-dim)}
@@ -269,6 +300,10 @@
   #censor-box.hot .enforcer{filter:drop-shadow(0 0 11px rgba(255,92,122,.75))}
   #wl .cimg{position:relative}
   #wl .watcher{position:absolute;top:6px;right:6px;opacity:.9}
+  #wl .cdec{color:var(--purple);cursor:pointer;letter-spacing:1px;font-size:10px}
+  #wl .cdec:hover{color:var(--ok)}
+  #wl .decoded{margin-top:8px;padding:7px 9px;border:1px dashed var(--ok);color:var(--ok);
+    font-size:12px;background:rgba(110,255,163,.06)}
   #wl .watchlbl{position:absolute;bottom:6px;right:8px;font-size:8px;letter-spacing:1px;
     color:var(--warn);background:rgba(13,6,24,.8);padding:1px 5px;border:1px solid var(--warn)}
   #censor-box{border-color:var(--purple-dim);transition:border-color .4s}
@@ -302,7 +337,7 @@
     <button class="tab" data-app="family">⚉ FAMILY</button>
     <button class="tab" data-app="patriot">✦ LANTERN</button>
   </nav>
-  <div id="sectorbar">SECTOR 7 · DAY <b id="sb-day">—</b> · POP <b>403</b> · <span id="sb-curfew">CURFEW —</span> · THREAT <b id="sb-threat">—</b></div>
+  <div id="sectorbar">SECTOR 7 · DAY <b id="sb-day">—</b> · POP <b>403</b> · <span id="sb-curfew">CURFEW —</span> · THREAT <b id="sb-threat">—</b> · <span id="tour-go" title="guided tour">? TOUR</span> · <span id="decoy-go" title="disguise this device">⌁ DECOY</span></div>
 </header>
 
 <!-- ==================== DEADDROP ==================== -->
@@ -581,6 +616,7 @@
   <div id="map"></div>
   <div id="bottombar">
     <button id="feed">⊞ CARTO DARK</button>
+    <button id="offline" title="download campus tiles so the map works with no signal">⇩ OFFLINE</button>
     <button id="locate">◎ LOCATE ME</button>
     <button id="export">⇪ EXPORT</button>
     <button id="import">⇩ IMPORT</button>
@@ -609,10 +645,15 @@
       <h2>&gt; NEW TRANSMISSION</h2>
       <textarea id="wl-text" placeholder="say something to the sector…" style="min-height:72px"></textarea>
       <div class="hint" id="wl-live" style="margin-top:6px">CENSOR-7 scans as you type.</div>
+      <div id="wl-conceal" style="display:none;margin-top:10px;border-top:1px dashed var(--purple-dim);padding-top:10px">
+        <label style="margin-top:0">HIDDEN MESSAGE — rides inside the post as invisible characters. CENSOR-7 cannot read it. Only someone who decodes can.</label>
+        <input id="wl-secret" placeholder="the real message…" autocomplete="off">
+      </div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button id="wl-post" style="flex:1">POST</button>
         <button id="wl-anon" class="ghost" style="flex:1" title="strip your callsign before posting">POST AS GHOST</button>
       </div>
+      <button id="wl-conceal-tog" class="ghost" style="width:100%;margin-top:8px">⊙ CONCEAL A MESSAGE INSIDE THIS POST</button>
     </div>
 
     <div id="wl-feed"></div>
@@ -725,6 +766,34 @@
     <textarea id="import-text" placeholder='[{"t":"camera","lat":…,"lng":…}]'></textarea>
     <button id="import-go">MERGE INTO MY MAP</button>
     <button id="import-cancel" class="ghost">CANCEL</button>
+  </div>
+</div>
+<div id="tour">
+  <div class="tourcard">
+    <div class="tourstep" id="tour-step">1 / 7</div>
+    <div class="tourtitle" id="tour-title"></div>
+    <div class="tourbody" id="tour-body"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button id="tour-skip" class="ghost" style="flex:1">SKIP</button>
+      <button id="tour-next" style="flex:2">NEXT ▸</button>
+    </div>
+  </div>
+</div>
+<div id="decoy">
+  <div class="calc">
+    <div class="calc-screen" id="calc-screen">0</div>
+    <div class="calc-grid">
+      <button class="ck fn" data-k="C">C</button><button class="ck fn" data-k="←">←</button>
+      <button class="ck fn" data-k="%">%</button><button class="ck op" data-k="/">÷</button>
+      <button class="ck" data-k="7">7</button><button class="ck" data-k="8">8</button>
+      <button class="ck" data-k="9">9</button><button class="ck op" data-k="*">×</button>
+      <button class="ck" data-k="4">4</button><button class="ck" data-k="5">5</button>
+      <button class="ck" data-k="6">6</button><button class="ck op" data-k="-">−</button>
+      <button class="ck" data-k="1">1</button><button class="ck" data-k="2">2</button>
+      <button class="ck" data-k="3">3</button><button class="ck op" data-k="+">+</button>
+      <button class="ck wide" data-k="0">0</button><button class="ck" data-k=".">.</button>
+      <button class="ck eq" data-k="=">=</button>
+    </div>
   </div>
 </div>
 <div id="toast"></div>
@@ -891,6 +960,35 @@ const Market = {
 };
 Market.load();
 
+
+/* ---- steganography: carry a hidden message inside innocent cover text ----
+   Payload rides as zero-width characters, invisible on screen and invisible to
+   a keyword censor — which only ever reads the visible words.               */
+const ZW = { on:'‌', off:'​', mark:'‍' };
+const Steg = {
+  hide(cover, secret){
+    const bytes = new TextEncoder().encode(secret);
+    let bits = '';
+    for (const b of bytes) bits += b.toString(2).padStart(8, '0');
+    const payload = ZW.mark + [...bits].map(c => c === '1' ? ZW.on : ZW.off).join('') + ZW.mark;
+    const cut = cover.indexOf(' ');          // tuck it after the first word
+    return cut > 0 ? cover.slice(0, cut) + payload + cover.slice(cut) : cover + payload;
+  },
+  extract(text){
+    const a = text.indexOf(ZW.mark), b = text.lastIndexOf(ZW.mark);
+    if (a < 0 || b <= a) return null;
+    const bits = [...text.slice(a + 1, b)]
+      .filter(c => c === ZW.on || c === ZW.off)
+      .map(c => c === ZW.on ? '1' : '0').join('');
+    if (bits.length < 8) return null;
+    const bytes = [];
+    for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
+    try{ return new TextDecoder().decode(new Uint8Array(bytes)); }catch(e){ return null; }
+  },
+  strip(text){ return text.replace(/[​‌‍]/g, ''); },
+  has(text){ return /‍[​‌]{8,}‍/.test(text); }
+};
+
 /* ---- detailed vector art: enforcement units, drones, map pins ----
    Original illustrations drawn in SVG — no external assets, works offline. */
 function enforcerSVG(color, h){
@@ -988,7 +1086,8 @@ const TIERS = [
   { max:101, name:'ENEMY OF THE STATE', color:'#ff5c7a', line:'Remain where you are. A unit has been dispatched.' },
 ];
 function censorScan(text){
-  const t = ' ' + String(text).toLowerCase().replace(/[^a-z0-9\s]/g, ' ') + ' ';
+  /* the censor reads only what is visible — that is the whole point */
+  const t = ' ' + Steg.strip(String(text)).toLowerCase().replace(/[^a-z0-9\s]/g, ' ') + ' ';
   let score = 0;
   const hits = [];
   for (const w in FORBIDDEN){
@@ -1101,7 +1200,8 @@ function rawMergePoints(arr){
     if (!p || !p.id || have.has(String(p.id)) || !OK[p.t]) continue;
     if (typeof p.lat !== 'number' || typeof p.lng !== 'number') continue;
     pts.push({ id:String(p.id), t:p.t, lat:p.lat, lng:p.lng,
-      r: Math.min(+p.r || 0, 2000), note: String(p.note || '').slice(0, 140) });
+      r: Math.min(+p.r || 0, 2000), note: String(p.note || '').slice(0, 140),
+      ok: Math.max(0, +p.ok || 0), no: Math.max(0, +p.no || 0) });
     n++;
   }
   if (n) try{ localStorage.setItem('blindspot-v1', JSON.stringify(pts)); }catch(e){}
@@ -2016,13 +2116,25 @@ UN.register('feed', $('wl'), function(){
         '<div class="cimg">' + pixelSprite(postEmoji(p), t.color, shadeOf(t.color), '#ffffff', 9) +
           (p.scan.score >= 50 ? '<div class="watcher">' + droneSVG('#ff5c7a', 26) + '</div>'
             + '<div class="watchlbl">UNDER OBSERVATION</div>' : '') + '</div>' +
-        '<div class="ctext">' + esc(p.text) + '</div>' +
+        '<div class="ctext">' + esc(Steg.strip(p.text)) + '</div>' +
         '<div class="cfoot">' +
           '<span class="clike' + (liked.has(p.id) ? ' on' : '') + '">♥ ' + p.likes + '</span>' +
+          '<span class="cdec">⊙ DECODE</span>' +
           '<span class="cflag" style="color:' + t.color + ';border-color:' + t.color + '">' +
             t.name + ' · ' + p.scan.score + '</span>' +
         '</div></div>';
     }).join('') || '<div class="hint">the wall is empty. say something.</div>';
+    $('wl-feed').querySelectorAll('.cdec').forEach(a => a.addEventListener('click', () => {
+      const p = Wall.posts.find(x => x.id === a.closest('.card').dataset.id);
+      if (!p) return;
+      const secret = Steg.extract(p.text);
+      const box = a.closest('.card').querySelector('.ctext');
+      if (secret){
+        box.innerHTML = esc(Steg.strip(p.text)) +
+          '<div class="decoded">⊙ HIDDEN PAYLOAD: ' + esc(secret) + '</div>';
+        toast('PAYLOAD RECOVERED — THE CENSOR NEVER SAW IT');
+      } else toast('NOTHING HIDDEN IN THIS TRANSMISSION');
+    }));
     $('wl-feed').querySelectorAll('.clike').forEach(a => a.addEventListener('click', () => {
       const id = a.closest('.card').dataset.id;
       const p = Wall.posts.find(x => x.id === id);
@@ -2058,14 +2170,26 @@ UN.register('feed', $('wl'), function(){
     const text = $('wl-text').value.trim();
     if (!text) return toast('NOTHING TO TRANSMIT');
     const scan = censorScan(text);
-    Wall.add({ who: anon ? 'ANONYMOUS' : (UN.myCallsign || 'CITIZEN'), text: text.slice(0, 300) });
-    $('wl-text').value = '';
+    const secret = $('wl-secret').value.trim();
+    const body = secret ? Steg.hide(text.slice(0, 300), secret.slice(0, 200)) : text.slice(0, 300);
+    Wall.add({ who: anon ? 'ANONYMOUS' : (UN.myCallsign || 'CITIZEN'), text: body });
+    $('wl-text').value = ''; $('wl-secret').value = '';
+    $('wl-conceal').style.display = 'none';
+    $('wl-conceal-tog').textContent = '⊙ CONCEAL A MESSAGE INSIDE THIS POST';
+    if (secret) toast('POSTED — SCORED ' + scan.tier.name + '. THE PAYLOAD IS INVISIBLE TO THE CENSOR.');
     $('wl-live').textContent = 'CENSOR-7 scans as you type.';
     toast(scan.score >= 50
       ? '⚠ POSTED — FLAGGED ' + scan.tier.name + '. POST ANYWAY. THAT IS THE POINT.'
       : 'POSTED TO THE WALL');
     renderWall();
   }
+  $('wl-conceal-tog').addEventListener('click', () => {
+    const c = $('wl-conceal');
+    const on = c.style.display === 'none';
+    c.style.display = on ? 'block' : 'none';
+    $('wl-conceal-tog').textContent = on ? '⊙ CONCEALMENT ARMED — HIDE THE PANEL' : '⊙ CONCEAL A MESSAGE INSIDE THIS POST';
+    if (on) $('wl-secret').focus();
+  });
   $('wl-post').addEventListener('click', () => publish(false));
   $('wl-anon').addEventListener('click', () => publish(true));
 
@@ -2433,28 +2557,89 @@ UN.register('blindspot', $('bs'), function(){
     if (i >= 0) startFeed = i;
   }catch(e){}
   useFeed(startFeed, false); // no key: start on the keyless Esri dark feed
+  /* pre-cache campus map tiles so BLINDSPOT still draws in airplane mode */
+  $('offline').addEventListener('click', async () => {
+    const b = $('offline');
+    if (b.dataset.busy) return;
+    b.dataset.busy = '1';
+    const f = FEEDS[feedIdx];
+    const N = 38.8395, S = 38.8225, W = -77.3215, E = -77.2985;
+    const lon2x = (lon, z) => Math.floor((lon + 180) / 360 * Math.pow(2, z));
+    const lat2y = (lat, z) => {
+      const r = lat * Math.PI / 180;
+      return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
+    };
+    const urls = [];
+    for (let z = 15; z <= 18; z++){
+      if (z > f.maxZoom) break;
+      for (let x = lon2x(W, z); x <= lon2x(E, z); x++)
+        for (let y = lat2y(N, z); y <= lat2y(S, z); y++)
+          urls.push(f.url.replace('{z}', z).replace('{x}', x).replace('{y}', y)
+            .replace('{s}', (f.subdomains || 'abc')[0]).replace('{r}', ''));
+    }
+    let done = 0, failed = 0;
+    b.textContent = '⇩ 0/' + urls.length;
+    for (let i = 0; i < urls.length; i += 6){
+      await Promise.all(urls.slice(i, i + 6).map(u =>
+        fetch(u, { mode: 'no-cors' }).then(() => done++).catch(() => failed++)));
+      b.textContent = '⇩ ' + done + '/' + urls.length;
+    }
+    b.textContent = '✓ OFFLINE READY';
+    toast('CAMPUS CACHED — ' + done + ' TILES. THE MAP NOW WORKS WITH NO SIGNAL.');
+    setTimeout(() => { b.textContent = '⇩ OFFLINE'; delete b.dataset.busy; }, 4000);
+  });
   $('feed').addEventListener('click', () => { useFeed(feedIdx + 1, true);
     toast(FEEDS[feedIdx].name === 'SATELLITE' ? 'SATELLITE — LIVE AERIAL IMAGERY OF THE REAL CAMPUS' : 'FEED: ' + FEEDS[feedIdx].name); });
 
+  function conf(p){ return (+p.ok || 0) - (+p.no || 0); }
+  function confLabel(c){
+    return c >= 2 ? ['CONFIRMED', 'var(--ok)'] : c <= -2 ? ['LIKELY GONE', 'var(--purple-dim)']
+         : c < 0 ? ['DISPUTED', 'var(--accent)'] : ['UNVERIFIED', 'var(--purple)'];
+  }
   function drawPoint(p){
     const T = TYPES[p.t];
     const g = L.layerGroup();
+    const c = conf(p);
+    const fade = c <= -2 ? 0.3 : c < 0 ? 0.6 : 1;
     if (p.r > 0){
       L.circle([p.lat, p.lng], {
         radius: p.r,
-        color: T.color, weight: 1, opacity: .7,
-        fillColor: T.color, fillOpacity: T.threat ? .14 : .08,
+        color: T.color, weight: 1, opacity: .7 * fade,
+        fillColor: T.color, fillOpacity: (T.threat ? .14 : .08) * fade,
         dashArray: T.threat ? null : '4 5'
       }).addTo(g);
     }
     const icon = p.t === 'drone'
       ? L.divIcon({ className:'', html: droneSVG(T.color, 34), iconSize:[34,34], iconAnchor:[17,17] })
       : L.divIcon({ className:'', html: mapPin(T.icon, T.color, 26), iconSize:[26,33], iconAnchor:[13,32] });
-    const m = L.marker([p.lat, p.lng], { icon }).addTo(g);
+    const m = L.marker([p.lat, p.lng], { icon, opacity: fade }).addTo(g);
     const el = document.createElement('div');
     el.innerHTML = '<div class="pp-type">' + T.icon + ' ' + T.label + '</div>' +
       '<div class="pp-note">' + esc(p.note || T.note) + '</div>' +
       (p.r ? '<div class="pp-note" style="color:var(--purple)">coverage ≈ ' + p.r + ' m</div>' : '');
+    const cl = confLabel(c);
+    const cinfo = document.createElement('div');
+    cinfo.className = 'pp-note';
+    cinfo.innerHTML = '<span style="color:' + cl[1] + '">● ' + cl[0] + '</span>' +
+      '<span style="color:var(--purple)"> · ' + (+p.ok || 0) + ' confirm / ' + (+p.no || 0) + ' dispute</span>';
+    el.appendChild(cinfo);
+    const vote = document.createElement('div');
+    const mkv = (label, field) => {
+      const a = document.createElement('span');
+      a.className = 'pp-act'; a.textContent = label;
+      a.addEventListener('click', () => {
+        p[field] = (+p[field] || 0) + 1;
+        save();
+        if (layers[p.id]){ map.removeLayer(layers[p.id]); delete layers[p.id]; }
+        drawPoint(p);
+        UN.live({ point: p });
+        toast(field === 'ok' ? 'CONFIRMED — CONFIDENCE UP' : 'DISPUTED — MARKER FADING');
+      });
+      return a;
+    };
+    vote.appendChild(mkv('[ STILL THERE ]', 'ok'));
+    vote.appendChild(mkv('[ GONE ]', 'no'));
+    el.appendChild(vote);
     const del = document.createElement('span');
     del.className = 'pp-del'; del.textContent = '[ REMOVE ]';
     del.addEventListener('click', () => removePoint(p.id));
@@ -2622,9 +2807,20 @@ UN.register('blindspot', $('bs'), function(){
     const have = new Set(points.map(p => p.id));
     for (const p of (incoming || [])){
       if (!p || !TYPES[p.t] || typeof p.lat !== 'number' || typeof p.lng !== 'number') continue;
-      if (have.has(p.id)) continue;
+      if (have.has(p.id)){
+        /* already known — adopt the higher vote counts so confidence converges */
+        const ex = points.find(x => x.id === p.id);
+        if (ex && ((+p.ok || 0) > (+ex.ok || 0) || (+p.no || 0) > (+ex.no || 0))){
+          ex.ok = Math.max(+ex.ok || 0, +p.ok || 0);
+          ex.no = Math.max(+ex.no || 0, +p.no || 0);
+          if (layers[ex.id]){ map.removeLayer(layers[ex.id]); delete layers[ex.id]; }
+          drawPoint(ex); save();
+        }
+        continue;
+      }
       addPoint({ id: String(p.id || Math.random()), t: p.t, lat: p.lat, lng: p.lng,
-        r: Math.min(+p.r || 0, 2000), note: String(p.note || '').slice(0, 140) }, true);
+        r: Math.min(+p.r || 0, 2000), note: String(p.note || '').slice(0, 140),
+        ok: Math.max(0, +p.ok || 0), no: Math.max(0, +p.no || 0) }, true);
       added++;
     }
     if (added){ save(); refreshStats(); }
@@ -2840,6 +3036,96 @@ UN.register('blindspot', $('bs'), function(){
    BOOT
 ====================================================================== */
 UN.show((location.hash || '#deaddrop').replace('#','').replace(/\?.*$/,''));
+
+
+/* ======================================================================
+   GUIDED TOUR — so a judge opening this cold knows what they're holding
+====================================================================== */
+(function(){
+  const STEPS = [
+    { tab:null, t:'UNDERNET', b:'Everything the underground needs, in one file with no servers behind it. Seven tools that keep working when the network — or the state — turns against you.<br><br>This tour takes about forty seconds.' },
+    { tab:'deaddrop', t:'DEADDROP', b:'Serverless messaging. Every session mints a throwaway callsign — no account, no number, no email. Scan a friend\'s QR and you are talking device to device, encrypted. Turn the wifi off and it keeps working. BURN wipes both ends at once.' },
+    { tab:'blindspot', t:'BLINDSPOT', b:'The real Fairfax campus, drawn from live OpenStreetMap data, with the surveillance grid mapped on top by the community. Tap ◬ BLIND ROUTE and pick two points — it finds the walking path with the least camera coverage.' },
+    { tab:'feed', t:'THE WALL', b:'The sector\'s feed, watched by CENSOR-7. Type something defiant and watch the enforcement unit grow. Then notice it only reads <i>words</i> — so a message hidden inside a post sails straight past it. Try ⊙ DECODE on a post.' },
+    { tab:'ration', t:'RATION', b:'Scarce supplies, split by an algorithm everyone can check. Children count at 0.7, medical households get 4× medicine. It forecasts the day you run dry, and lets you stress-test a raid or a wave of new arrivals.' },
+    { tab:'patriot', t:'LANTERN', b:'A survival assistant that runs on this device — ask it where to eat, who carries insulin, or how to build a shelter tonight. There is also a full LLM edition we built on GMU\'s own Patriot AI platform.' },
+    { tab:'deaddrop', t:'ONE MORE THING', b:'Tap <b>⇩ OFFLINE</b> on the map to cache the campus, then put this device in airplane mode. Everything you just saw still works.<br><br>⌁ DECOY in the status bar disguises the app entirely. Welcome to the resistance.' },
+  ];
+  let i = 0;
+  function paint(){
+    const s = STEPS[i];
+    $('tour-step').textContent = (i + 1) + ' / ' + STEPS.length;
+    $('tour-title').textContent = s.t;
+    $('tour-body').innerHTML = s.b;
+    $('tour-next').textContent = i === STEPS.length - 1 ? 'START ▸' : 'NEXT ▸';
+    if (s.tab) UN.show(s.tab);
+  }
+  function open(){ i = 0; $('tour').style.display = 'flex'; paint(); }
+  function close(){
+    $('tour').style.display = 'none';
+    try{ localStorage.setItem('undernet-toured', '1'); }catch(e){}
+  }
+  $('tour-go').addEventListener('click', open);
+  $('tour-skip').addEventListener('click', close);
+  $('tour-next').addEventListener('click', () => {
+    if (i < STEPS.length - 1){ i++; paint(); } else close();
+  });
+  let seen = false;
+  try{ seen = !!localStorage.getItem('undernet-toured'); }catch(e){}
+  if (!seen) setTimeout(open, 700);
+})();
+
+/* ======================================================================
+   DECOY MODE — the device stops looking like a resistance tool.
+   Enter the unlock code and press = to come back.
+   Enter the panic code and press = to destroy everything on this device.
+====================================================================== */
+const DECOY = { unlock: '1337', panic: '0000' };
+(function(){
+  let buf = '0', fresh = true;
+  const scr = () => $('calc-screen');
+  function show(v){ scr().textContent = String(v).slice(0, 14); }
+  function enter(){ $('decoy').style.display = 'flex'; buf = '0'; fresh = true; show('0'); }
+  function leave(){ $('decoy').style.display = 'none'; }
+  UN.decoy = enter;
+  $('decoy-go').addEventListener('click', enter);
+  document.querySelectorAll('#decoy .ck').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.k;
+    if (k === 'C'){ buf = '0'; fresh = true; return show(buf); }
+    if (k === '←'){ buf = buf.length > 1 ? buf.slice(0, -1) : '0'; return show(buf); }
+    if (k === '='){
+      if (buf === DECOY.unlock){ leave(); toast('WELCOME BACK'); return; }
+      if (buf === DECOY.panic){
+        try{ localStorage.clear(); }catch(e){}
+        try{ if (window.caches) caches.keys().then(ks => ks.forEach(x => caches.delete(x))); }catch(e){}
+        show('0');
+        setTimeout(() => location.reload(), 350);
+        return;
+      }
+      try{
+        /* a real calculator, so it survives a glance */
+        const v = Function('"use strict";return (' + buf.replace(/[^0-9+\-*/.%() ]/g, '') + ')')();
+        buf = String(Math.round(v * 1e10) / 1e10);
+      }catch(e){ buf = 'Error'; }
+      fresh = true;
+      return show(buf);
+    }
+    if (fresh && /[0-9.]/.test(k)){ buf = k === '.' ? '0.' : k; fresh = false; }
+    else if (buf === '0' && /[0-9]/.test(k)) buf = k;
+    else buf += k;
+    show(buf);
+  }));
+  /* Escape three times in two seconds also hides the app */
+  let esc = 0, escT = null;
+  addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    esc++;
+    clearTimeout(escT);
+    escT = setTimeout(() => esc = 0, 2000);
+    if (esc >= 3){ esc = 0; enter(); }
+  });
+})();
+
 /* installable + offline: the suite opens even with the grid down */
 if ('serviceWorker' in navigator)
   addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
