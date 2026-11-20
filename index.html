@@ -227,10 +227,18 @@
   #pa .chip-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--bg)}
   #pa .msg .act{display:inline-block;margin:6px 8px 0 0;font-size:11px;letter-spacing:1px;
     color:var(--ok);cursor:pointer;text-decoration:underline}
-  #pa .post{border-bottom:1px dashed rgba(74,53,128,.4);padding:8px 0;font-size:12px;line-height:1.5}
-  #pa .post .ptype{color:var(--accent);font-size:10px;letter-spacing:1px}
-  #pa .post .pwho{color:#fff}
-  #pa .post .ploc{color:var(--purple);font-size:11px}
+  #pa #pa-posts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  #pa .post{border:1px solid var(--purple-dim);background:var(--bg);padding:0 0 8px;
+    font-size:11px;line-height:1.45;overflow:hidden}
+  #pa .post .thumb{height:72px;display:flex;align-items:center;justify-content:center;font-size:36px;
+    background:linear-gradient(135deg,var(--panel2),var(--panel));
+    border-bottom:1px solid var(--purple-dim);position:relative}
+  #pa .post .ptype{position:absolute;top:4px;left:4px;color:var(--accent);font-size:9px;
+    letter-spacing:1px;background:rgba(13,6,24,.78);padding:1px 5px}
+  #pa .post .pbody{padding:6px 8px 0}
+  #pa .post .poffer{color:#fff;font-size:12px}
+  #pa .post .pwant{color:var(--accent);margin-top:2px}
+  #pa .post .pmeta{color:var(--purple);font-size:10px;margin-top:4px}
   /* ---------- FAMILY ---------- */
   #fm .fmcard{border:1px solid var(--purple-dim);background:var(--bg);padding:10px 12px;margin-bottom:8px;
     font-size:13px;line-height:1.6}
@@ -1837,13 +1845,27 @@ UN.register('patriot', $('pa'), function(){
     $('pa-chips').appendChild(b);
   });
 
-  /* barter board */
+  /* barter board — marketplace cards with keyword-matched thumbnails */
+  function postEmoji(p){
+    const s = (p.offer + ' ' + p.want).toLowerCase();
+    const MAP = [['water','💧'],['insulin','💉'],['antibiot','💊'],['pill','💊'],['med','💊'],['first aid','🩹'],
+      ['radio','📻'],['batter','🔋'],['solar','🔆'],['charger','🔌'],['fuel','⛽'],['convoy','🚐'],['seat','🚐'],
+      ['bike','🚲'],['courier','📦'],['haul','📦'],['meal','🥫'],['food','🥫'],['ration','🥫'],['protein','🥫'],
+      ['map','🗺️'],['flashlight','🔦'],['watch','🛡️'],['guard','🛡️'],['repair','🛠️'],['tool','🛠️'],['setup','🏗️'],
+      ['blanket','🧦'],['cot','🛏️']];
+    for (const [k, e] of MAP) if (s.includes(k)) return e;
+    return p.type === 'work' ? '⚒️' : p.type === 'transport' ? '🚐' : '🎒';
+  }
   function renderBoard(){
     $('pa-posts').innerHTML = Market.posts.map(p => {
       const w = worldById(p.loc);
-      return '<div class="post"><span class="ptype">[' + postLabel(p) + ']</span> ' +
-        '<span class="pwho">' + esc(p.who) + '</span> offers <span style="color:var(--accent)">' + esc(p.offer) + '</span>' +
-        ' ⇄ wants ' + esc(p.want) + '<br><span class="ploc">meet @ ' + w.name + '</span></div>';
+      return '<div class="post">' +
+        '<div class="thumb"><span class="ptype">' + postLabel(p) + '</span>' + postEmoji(p) + '</div>' +
+        '<div class="pbody">' +
+        '<div class="poffer">' + esc(p.offer) + '</div>' +
+        '<div class="pwant">⇄ ' + esc(p.want) + '</div>' +
+        '<div class="pmeta">' + esc(p.who) + ' · ' + w.name.split(' (')[0] + '</div>' +
+        '</div></div>';
     }).join('');
   }
   UN.renderBoard = renderBoard;
