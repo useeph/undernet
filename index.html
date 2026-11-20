@@ -1830,7 +1830,7 @@ UN.register('patriot', $('pa'), function(){
   });
   $('pa-send').addEventListener('click', () => { ask($('pa-input').value); $('pa-input').value = ''; });
   $('pa-input').addEventListener('keydown', e => { if (e.key === 'Enter'){ ask($('pa-input').value); $('pa-input').value = ''; } });
-  ['WHERE CAN I EAT?','FIND MEDS','SHELTER TONIGHT','WHO HAS RIDES?','RATION STATUS','SAFEST ROUTE','MY FAMILY','BUILD A SHELTER'].forEach(c => {
+  ['WHERE CAN I EAT?','FIND MEDS','SHELTER TONIGHT','WHO HAS RIDES?','RATION STATUS','SAFEST ROUTE','FIND WORK','MY FAMILY','BUILD A SHELTER'].forEach(c => {
     const b = document.createElement('button');
     b.className = 'chip-btn'; b.textContent = c;
     b.addEventListener('click', () => ask(c));
