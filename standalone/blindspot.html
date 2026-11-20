@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLINDSPOT — map what watches you</title>
+<!--
+  BLINDSPOT — a community-maintained map of the surveillance grid,
+  and the gaps in it.
+  Patriot HackFest Fall 2026 — Track: Best Solution for a Dystopian World
+
+  - Interactive Leaflet map. Tap to log cameras (with coverage radius),
+    checkpoints, drone patrol zones, safe houses and dead zones.
+  - Data lives in localStorage only. Sync is sneakernet: EXPORT copies the
+    grid as JSON, IMPORT merges a comrade's — no server ever sees the map.
+  - REAL CAMPUS DATA: on load, the app queries the OpenStreetMap Overpass
+    API for actual George Mason University (Fairfax) building footprints and
+    names, draws them, and labels them. The result is cached in localStorage,
+    so after first load the campus renders even offline.
+  - Click any building to log a camera or safe house anchored to it.
+  - Seeded with demo markers around campus (fictional flavor notes).
+  - Needs internet for map tiles + first building fetch; all else is local.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root {
+    --bg:#0d0618; --panel:#170b2b; --panel2:#1f1038;
+    --purple:#7c5cff; --purple-dim:#4a3580;
+    --text:#cfc3f5; --accent:#f5e9a8; --warn:#ff5c7a; --ok:#6effa3;
+    --mono:'Share Tech Mono',monospace; --display:'VT323',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);display:flex;flex-direction:column;overflow:hidden}
+  header{padding:8px 14px 6px;border-bottom:1px solid var(--purple-dim);background:var(--panel);flex:none;z-index:1001}
+  .tagline{color:var(--purple);font-size:11px;letter-spacing:2px}
+  h1{font-family:var(--display);font-size:28px;color:#efe9ff;letter-spacing:4px;line-height:1}
+  h1 .o{color:var(--warn)}
+  #stats{display:flex;gap:12px;font-size:10px;color:var(--purple);margin-top:4px;flex-wrap:wrap}
+  #stats b{color:var(--text);font-weight:normal}
+
+  #toolbar{display:flex;gap:6px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--purple-dim);
+    flex:none;overflow-x:auto;z-index:1001}
+  .tool{font-family:var(--mono);font-size:11px;letter-spacing:1px;padding:7px 10px;white-space:nowrap;
+    background:var(--bg);border:1px solid var(--purple-dim);color:var(--text);cursor:pointer}
+  .tool.active{background:var(--purple-dim);border-color:var(--accent);color:#fff}
+  .tool .dot{font-size:12px}
+
+  #map{flex:1;background:#0a0514}
+  /* dystopian tint on dark basemaps (not applied to satellite) */
+  body.tinted .leaflet-tile{filter:hue-rotate(215deg) saturate(1.15) brightness(.92)}
+  body.tinted-invert .leaflet-tile{filter:invert(1) hue-rotate(230deg) saturate(.45) brightness(.72) contrast(1.05)}
+  .leaflet-container{font-family:var(--mono)}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--text);
+    border:1px solid var(--purple);border-radius:0}
+  .leaflet-popup-content{font-family:var(--mono);font-size:12px;margin:10px 12px}
+  .pp-type{color:var(--accent);letter-spacing:2px;font-size:11px}
+  .pp-note{margin:6px 0;color:var(--text)}
+  .pp-del{color:var(--warn);cursor:pointer;font-size:11px;letter-spacing:1px;text-decoration:underline}
+  .mark{font-size:18px;line-height:1;text-shadow:0 0 6px #000;filter:drop-shadow(0 0 3px rgba(0,0,0,.9))}
+  .bldlabel{font-family:var(--mono);font-size:9px;letter-spacing:.5px;color:#b7a8ea;
+    text-shadow:0 0 4px #000,0 0 4px #000,0 0 4px #000;white-space:nowrap;
+    transform:translate(-50%,-50%);width:max-content;pointer-events:none}
+  .pp-act{display:inline-block;color:var(--accent);cursor:pointer;font-size:11px;
+    letter-spacing:1px;text-decoration:underline;margin-right:10px}
+
+  #bottombar{flex:none;display:flex;gap:6px;padding:8px 14px calc(8px + env(safe-area-inset-bottom));
+    background:var(--panel);border-top:1px solid var(--purple-dim);z-index:1001}
+  #bottombar button{flex:1;font-family:var(--mono);font-size:11px;letter-spacing:1px;padding:9px 4px;
+    background:var(--purple-dim);border:1px solid var(--purple);color:#fff;cursor:pointer}
+  #bottombar button:hover{background:var(--purple)}
+
+  /* import overlay */
+  #overlay{display:none;position:fixed;inset:0;background:rgba(13,6,24,.92);z-index:2000;
+    align-items:center;justify-content:center;padding:20px}
+  #overlay .box{background:var(--panel);border:1px solid var(--purple);padding:16px;max-width:460px;width:100%}
+  #overlay h2{font-size:13px;color:var(--accent);letter-spacing:2px;margin-bottom:8px}
+  #overlay textarea{width:100%;min-height:120px;background:var(--bg);border:1px solid var(--purple-dim);
+    color:var(--text);font-family:var(--mono);font-size:11px;padding:8px}
+  #overlay button{width:100%;margin-top:8px;font-family:var(--mono);padding:10px;letter-spacing:2px;
+    background:var(--purple-dim);border:1px solid var(--purple);color:#fff;cursor:pointer}
+  #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--panel);
+    border:1px solid var(--accent);color:var(--accent);font-size:11px;letter-spacing:1px;
+    padding:8px 14px;z-index:3000;display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="tagline">the grid has gaps. know them before you need them.</div>
+  <h1>BLINDSP<span class="o">◉</span>T</h1>
+  <div id="stats">
+    <span>CAMERAS: <b id="s-cam">0</b></span>
+    <span>CHECKPOINTS: <b id="s-chk">0</b></span>
+    <span>DRONE ZONES: <b id="s-drn">0</b></span>
+    <span>SAFE: <b id="s-safe" style="color:var(--ok)">0</b></span>
+    <span>DEAD ZONES: <b id="s-dead" style="color:var(--ok)">0</b></span>
+    <span>CAMPUS: <b id="s-bld">LOADING…</b></span>
+  </div>
+</header>
+
+<div id="toolbar">
+  <button class="tool active" data-mode="nav"><span class="dot">✥</span> NAVIGATE</button>
+  <button class="tool" data-mode="camera"><span class="dot">⦿</span> +CAMERA</button>
+  <button class="tool" data-mode="checkpoint"><span class="dot">▣</span> +CHECKPOINT</button>
+  <button class="tool" data-mode="drone"><span class="dot">✈</span> +DRONE ZONE</button>
+  <button class="tool" data-mode="safe"><span class="dot">⌂</span> +SAFE HOUSE</button>
+  <button class="tool" data-mode="dead"><span class="dot">○</span> +DEAD ZONE</button>
+</div>
+
+<div id="map"></div>
+
+<div id="bottombar">
+  <button id="feed">⊞ CARTO DARK</button>
+  <button id="locate">◎ LOCATE ME</button>
+  <button id="export">⇪ EXPORT GRID</button>
+  <button id="import">⇩ IMPORT</button>
+  <button id="wipe" style="background:#3a0f1e;border-color:var(--warn);color:var(--warn)">BURN MAP</button>
+</div>
+
+<div id="overlay">
+  <div class="box">
+    <h2>&gt; IMPORT GRID — paste a comrade's export</h2>
+    <textarea id="import-text" placeholder='[{"t":"camera","lat":…,"lng":…}]'></textarea>
+    <button id="import-go">MERGE INTO MY MAP</button>
+    <button id="import-cancel" style="background:none;border-color:var(--purple-dim);color:var(--purple)">CANCEL</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = 'blindspot-v1';
+
+/* ---------- marker taxonomy ---------- */
+const TYPES = {
+  camera:     { icon:'⦿', color:'#ff5c7a', label:'CAMERA',      radius:60,  threat:true,
+                note:'fixed surveillance camera' },
+  checkpoint: { icon:'▣', color:'#f5e9a8', label:'CHECKPOINT',  radius:0,   threat:true,
+                note:'ID checks / searches' },
+  drone:      { icon:'✈', color:'#ff5c7a', label:'DRONE PATROL',radius:220, threat:true,
+                note:'aerial patrol zone' },
+  safe:       { icon:'⌂', color:'#6effa3', label:'SAFE HOUSE',  radius:0,   threat:false,
+                note:'shelter / resupply' },
+  dead:       { icon:'○', color:'#6effa3', label:'DEAD ZONE',   radius:120, threat:false,
+                note:'no coverage observed' },
+};
+
+/* ---------- state ---------- */
+let points = [];   // {id, t, lat, lng, r, note}
+let layers = {};   // id -> leaflet layer group
+let mode = 'nav';
+
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(points)); }catch(e){} }
+function load(){
+  try{ const p = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(p)) return p; }catch(e){}
+  return null;
+}
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', 1800);
+}
+
+/* ---------- map ---------- */
+const map = L.map('map', { zoomControl: true }).setView([38.8315, -77.3119], 15); // GMU Fairfax
+/* ---- tile feeds: keyless providers, auto-failover + manual cycle ---- */
+// CARTO basemap key — publishable client-side by design; restrict it to your
+// deployed domain in the CARTO dashboard before the repo goes public.
+const CARTO_KEY = ''; // optional: add your own CARTO key (domain-restricted) for the CARTO basemaps
+const FEEDS = [
+  { name:'CARTO DARK', tint:true, maxZoom:20,
+    url:'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=' + CARTO_KEY,
+    attr:'&copy; OpenStreetMap contributors &copy; CARTO' },
+  { name:'CARTO VOYAGER', tint:'invert', maxZoom:20,
+    url:'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=' + CARTO_KEY,
+    attr:'&copy; OpenStreetMap contributors &copy; CARTO' },
+  { name:'ESRI DARK', tint:true, maxZoom:16,
+    url:'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attr:'Tiles &copy; Esri' },
+  { name:'SATELLITE', tint:false, maxZoom:19,
+    url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attr:'Imagery &copy; Esri' },
+  { name:'OSM', tint:false, maxZoom:19,
+    url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attr:'&copy; OpenStreetMap contributors' },
+];
+let feedIdx = 0, tileLayer = null, tileErrors = 0, autoSwitched = 0;
+function useFeed(i, manual){
+  feedIdx = ((i % FEEDS.length) + FEEDS.length) % FEEDS.length;
+  const f = FEEDS[feedIdx];
+  if (tileLayer) map.removeLayer(tileLayer);
+  tileErrors = 0;
+  document.body.classList.toggle('tinted', f.tint === true);
+  document.body.classList.toggle('tinted-invert', f.tint === 'invert');
+  tileLayer = L.tileLayer(f.url, { maxZoom:f.maxZoom, subdomains:f.subdomains || 'abc', attribution:f.attr });
+  tileLayer.on('tileerror', () => {
+    tileErrors++;
+    // feed is down/blocked: fail over automatically (max once per feed)
+    if (tileErrors === 5 && !manual && autoSwitched < FEEDS.length) {
+      autoSwitched++;
+      toast('FEED ' + f.name + ' BLOCKED — SWITCHING');
+      useFeed(feedIdx + 1, false);
+    }
+  });
+  tileLayer.addTo(map);
+  if (map.getZoom() > f.maxZoom) map.setZoom(f.maxZoom);
+  const fb = $('feed'); if (fb) fb.textContent = '⊞ ' + f.name;
+}
+useFeed(CARTO_KEY ? 0 : 2, false); // no key: start on the keyless Esri dark feed
+
+function drawPoint(p){
+  const T = TYPES[p.t];
+  const g = L.layerGroup();
+  if (p.r > 0) {
+    L.circle([p.lat, p.lng], {
+      radius: p.r,
+      color: T.color, weight: 1, opacity: .7,
+      fillColor: T.color, fillOpacity: T.threat ? .14 : .08,
+      dashArray: T.threat ? null : '4 5'
+    }).addTo(g);
+  }
+  const icon = L.divIcon({ className:'', html:'<div class="mark" style="color:'+T.color+'">'+T.icon+'</div>',
+    iconSize:[18,18], iconAnchor:[9,9] });
+  const m = L.marker([p.lat, p.lng], { icon }).addTo(g);
+  const el = document.createElement('div');
+  el.innerHTML = '<div class="pp-type">' + T.icon + ' ' + T.label + '</div>' +
+    '<div class="pp-note">' + (p.note || T.note) + '</div>' +
+    (p.r ? '<div class="pp-note" style="color:var(--purple)">coverage ≈ ' + p.r + ' m</div>' : '');
+  const del = document.createElement('span');
+  del.className = 'pp-del'; del.textContent = '[ REMOVE ]';
+  del.addEventListener('click', () => removePoint(p.id));
+  el.appendChild(del);
+  m.bindPopup(el);
+  g.addTo(map);
+  layers[p.id] = g;
+}
+function removePoint(id){
+  points = points.filter(p => p.id !== id);
+  if (layers[id]) { map.removeLayer(layers[id]); delete layers[id]; }
+  save(); refreshStats();
+}
+function addPoint(p, quiet){
+  points.push(p); drawPoint(p);
+  if (!quiet){ save(); refreshStats(); }
+}
+function refreshStats(){
+  const c = t => points.filter(p => p.t === t).length;
+  $('s-cam').textContent = c('camera');
+  $('s-chk').textContent = c('checkpoint');
+  $('s-drn').textContent = c('drone');
+  $('s-safe').textContent = c('safe');
+  $('s-dead').textContent = c('dead');
+}
+
+/* ---------- interaction ---------- */
+document.querySelectorAll('.tool').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.tool').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    mode = b.dataset.mode;
+    map.getContainer().style.cursor = mode === 'nav' ? '' : 'crosshair';
+  });
+});
+map.on('click', e => {
+  if (mode === 'nav') return;
+  const T = TYPES[mode];
+  addPoint({
+    id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+    t: mode, lat: +e.latlng.lat.toFixed(6), lng: +e.latlng.lng.toFixed(6),
+    r: T.radius, note: ''
+  });
+  toast(T.label + ' LOGGED');
+});
+
+$('feed').addEventListener('click', () => { useFeed(feedIdx + 1, true); toast('FEED: ' + FEEDS[feedIdx].name); });
+
+/* ---------- locate ---------- */
+$('locate').addEventListener('click', () => {
+  if (!navigator.geolocation) return toast('GEOLOCATION UNAVAILABLE');
+  toast('ACQUIRING POSITION…');
+  navigator.geolocation.getCurrentPosition(pos => {
+    const ll = [pos.coords.latitude, pos.coords.longitude];
+    map.setView(ll, 16);
+    L.circleMarker(ll, { radius:7, color:'#7c5cff', fillColor:'#7c5cff', fillOpacity:.9 })
+      .addTo(map).bindPopup('YOU ARE HERE — and now you know who else knows.').openPopup();
+  }, () => toast('POSITION DENIED — good instinct.'));
+});
+
+/* ---------- sneakernet sync ---------- */
+$('export').addEventListener('click', async () => {
+  const data = JSON.stringify(points);
+  try { await navigator.clipboard.writeText(data); toast('GRID COPIED — ' + points.length + ' POINTS. PASS IT ON.'); }
+  catch(e){ $('import-text').value = data; $('overlay').style.display = 'flex'; toast('CLIPBOARD BLOCKED — COPY MANUALLY'); }
+});
+$('import').addEventListener('click', () => { $('import-text').value=''; $('overlay').style.display='flex'; });
+$('import-cancel').addEventListener('click', () => $('overlay').style.display='none');
+$('import-go').addEventListener('click', () => {
+  try {
+    const incoming = JSON.parse($('import-text').value);
+    if (!Array.isArray(incoming)) throw 0;
+    let added = 0;
+    const have = new Set(points.map(p => p.id));
+    for (const p of incoming) {
+      if (!p || !TYPES[p.t] || typeof p.lat !== 'number' || typeof p.lng !== 'number') continue;
+      if (have.has(p.id)) continue;
+      addPoint({ id: String(p.id || Math.random()), t: p.t, lat: p.lat, lng: p.lng,
+        r: Math.min(+p.r || 0, 2000), note: String(p.note || '').slice(0, 140) }, true);
+      added++;
+    }
+    save(); refreshStats();
+    $('overlay').style.display = 'none';
+    toast('MERGED ' + added + ' NEW POINTS');
+  } catch(e){ toast('BAD GRID DATA'); }
+});
+$('wipe').addEventListener('click', () => {
+  points.forEach(p => layers[p.id] && map.removeLayer(layers[p.id]));
+  points = []; layers = {}; save(); refreshStats();
+  toast('MAP BURNED — NOTHING REMAINS');
+});
+
+/* ---------- real campus buildings (live from OpenStreetMap) ---------- */
+const BKEY = 'blindspot-campus-v1';
+const BBOX = '38.8235,-77.3205,38.8385,-77.2995'; // GMU Fairfax campus
+const OVERPASS = ['https://overpass-api.de/api/interpreter',
+                  'https://overpass.kumi.systems/api/interpreter'];
+const QUERY = '[out:json][timeout:25];way["building"]["name"](' + BBOX + ');out geom;';
+
+const labelLayer = L.layerGroup();
+function renderBuildings(elements){
+  let n = 0;
+  for (const el of elements) {
+    if (el.type !== 'way' || !el.geometry || !el.tags || !el.tags.name) continue;
+    const coords = el.geometry.map(g => [g.lat, g.lon]);
+    if (coords.length < 3) continue;
+    const name = el.tags.name;
+    const poly = L.polygon(coords, {
+      color:'#7c5cff', weight:1, opacity:.55,
+      fillColor:'#7c5cff', fillOpacity:.10
+    }).addTo(map);
+    const c = poly.getBounds().getCenter();
+    // popup: name + quick-log actions anchored to this building
+    const el2 = document.createElement('div');
+    el2.innerHTML = '<div class="pp-type">▦ ' + name.toUpperCase() + '</div>' +
+      '<div class="pp-note" style="color:var(--purple)">verified structure · OpenStreetMap</div>';
+    const act = document.createElement('div');
+    const mk = (label, type) => {
+      const a = document.createElement('span');
+      a.className = 'pp-act'; a.textContent = label;
+      a.addEventListener('click', () => {
+        addPoint({ id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
+          t: type, lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6),
+          r: TYPES[type].radius, note: TYPES[type].label.toLowerCase() + ' @ ' + name });
+        map.closePopup();
+        toast(TYPES[type].label + ' LOGGED @ ' + name.toUpperCase());
+      });
+      return a;
+    };
+    act.appendChild(mk('[ +CAMERA ]', 'camera'));
+    act.appendChild(mk('[ +SAFE HOUSE ]', 'safe'));
+    el2.appendChild(act);
+    poly.bindPopup(el2);
+    // name label at centroid (visible when zoomed in)
+    L.marker(c, { icon: L.divIcon({ className:'', html:'<div class="bldlabel">' + name + '</div>',
+      iconSize:[0,0] }), interactive:false }).addTo(labelLayer);
+    n++;
+  }
+  $('s-bld').textContent = n + ' REAL BUILDINGS';
+  syncLabels();
+  return n;
+}
+function syncLabels(){
+  if (map.getZoom() >= 16) { if (!map.hasLayer(labelLayer)) labelLayer.addTo(map); }
+  else if (map.hasLayer(labelLayer)) map.removeLayer(labelLayer);
+}
+map.on('zoomend', syncLabels);
+
+async function loadBuildings(){
+  // cached copy first — campus geometry doesn't change often
+  try {
+    const cached = JSON.parse(localStorage.getItem(BKEY));
+    if (cached && cached.elements && cached.elements.length) {
+      renderBuildings(cached.elements);
+      return;
+    }
+  } catch(e){}
+  for (const url of OVERPASS) {
+    try {
+      const ctl = new AbortController();
+      const kill = setTimeout(() => ctl.abort(), 20000);
+      const res = await fetch(url, { method:'POST', body:'data=' + encodeURIComponent(QUERY),
+        headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, signal: ctl.signal })
+        .finally(() => clearTimeout(kill));
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.elements && data.elements.length) {
+        try { localStorage.setItem(BKEY, JSON.stringify({ t: Date.now(), elements: data.elements })); } catch(e){}
+        renderBuildings(data.elements);
+        toast('CAMPUS GRID ACQUIRED — LIVE OSM DATA');
+        return;
+      }
+    } catch(e){ /* try next endpoint */ }
+  }
+  $('s-bld').textContent = 'OFFLINE — tiles only';
+}
+loadBuildings();
+
+/* ---------- seed demo data (GMU Fairfax) ---------- */
+const SEED = [
+  { t:'camera',     lat:38.8321, lng:-77.3125, r:60,  note:'JC north entrance, pans east' },
+  { t:'camera',     lat:38.8308, lng:-77.3098, r:60,  note:'parking deck, all levels' },
+  { t:'camera',     lat:38.8297, lng:-77.3141, r:60,  note:'new install — unlisted' },
+  { t:'camera',     lat:38.8332, lng:-77.3089, r:80,  note:'PTZ unit, long reach' },
+  { t:'checkpoint', lat:38.8289, lng:-77.3079, r:0,   note:'Rt 123 gate — ID checks after dark' },
+  { t:'drone',      lat:38.8341, lng:-77.3158, r:220, note:'patrol loop, ~20 min cycle' },
+  { t:'safe',       lat:38.8302, lng:-77.3172, r:0,   note:'the stacks — basement level, ask for ECHO' },
+  { t:'dead',       lat:38.8315, lng:-77.3060, r:120, note:'no coverage observed 3 nights running' },
+];
+const stored = load();
+if (stored && stored.length) stored.forEach(p => { points.push(p); drawPoint(p); });
+else SEED.forEach((p, i) => addPoint({ id:'seed-'+i, ...p }, true));
+save(); refreshStats();
+</script>
+</body>
+</html>

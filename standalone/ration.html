@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RATION — fair allocation when there isn't enough</title>
+<!--
+  RATION — a community allocation engine for scarce supplies.
+  Patriot HackFest Fall 2026 — Track: Best Solution for a Dystopian World
+
+  Model:
+  - Each household has people (children counted at 0.7 consumption for water/
+    food, full for power) and an optional MEDICAL flag (4x medicine need).
+  - For each resource, RATION computes total daily need, days of supply at
+    current stock, and a ration factor that stretches stock across the chosen
+    planning horizon. Allocations are proportional to need — same rules for
+    everyone, which is the point: scarcity without favoritism.
+  - All client-side. Works offline once loaded. No server to seize.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d0618; --panel:#170b2b; --panel2:#1f1038;
+    --purple:#7c5cff; --purple-dim:#4a3580;
+    --text:#cfc3f5; --accent:#f5e9a8; --warn:#ff5c7a; --ok:#6effa3;
+    --mono:'Share Tech Mono',monospace; --display:'VT323',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;
+    background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.18) 2px 4px)}
+  header{padding:10px 14px 8px;border-bottom:1px solid var(--purple-dim);background:var(--panel)}
+  .tagline{color:var(--purple);font-size:12px;letter-spacing:2px}
+  h1{font-family:var(--display);font-size:34px;color:#efe9ff;letter-spacing:4px;line-height:1}
+  main{max-width:860px;margin:0 auto;padding:16px 14px 40px}
+  .box{background:var(--panel);border:1px solid var(--purple-dim);padding:14px;margin-bottom:14px}
+  .box h2{font-size:13px;color:var(--accent);letter-spacing:2px;margin-bottom:10px}
+  .hint{font-size:11px;color:var(--purple);line-height:1.5}
+
+  /* supply tiles */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+  .tile{background:var(--bg);border:1px solid var(--purple-dim);padding:12px}
+  .tile .rname{font-size:11px;color:var(--purple);letter-spacing:2px}
+  .tile .days{font-family:var(--display);font-size:44px;line-height:1;color:#fff;margin:4px 0 2px}
+  .tile .unit{font-size:10px;color:var(--purple)}
+  .chip{display:inline-block;font-size:10px;letter-spacing:1px;padding:2px 7px;margin-top:6px;border:1px solid}
+  .chip.good{color:var(--ok);border-color:var(--ok)}
+  .chip.caution{color:var(--accent);border-color:var(--accent)}
+  .chip.critical{color:var(--warn);border-color:var(--warn);animation:blink 1.2s steps(2) infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .stockbar{height:8px;background:var(--panel2);border:1px solid var(--purple-dim);margin-top:8px}
+  .stockbar i{display:block;height:100%;background:var(--purple);transition:width .4s}
+
+  /* controls */
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+  label{display:block;font-size:11px;color:var(--purple);margin-bottom:4px;letter-spacing:1px}
+  input[type=range]{width:100%;accent-color:var(--purple)}
+  .ctlval{color:var(--accent);font-size:13px}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{color:var(--purple);font-weight:normal;text-align:left;letter-spacing:1px;
+    border-bottom:1px solid var(--purple-dim);padding:6px 6px;font-size:10px}
+  td{padding:7px 6px;border-bottom:1px dashed rgba(74,53,128,.4);vertical-align:middle}
+  td.num{text-align:right;white-space:nowrap}
+  .alloc{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+  .alloc .bar{width:54px;height:7px;background:var(--panel2);border:1px solid var(--purple-dim)}
+  .alloc .bar i{display:block;height:100%;background:var(--purple)}
+  .medflag{color:var(--warn);font-size:10px}
+  .hhname{color:#fff}
+  td input{width:46px;background:var(--bg);border:1px solid var(--purple-dim);color:var(--text);
+    font-family:var(--mono);font-size:12px;padding:3px;text-align:center}
+  td input[type=checkbox]{width:auto;accent-color:var(--warn)}
+  button{font-family:var(--mono);background:var(--purple-dim);border:1px solid var(--purple);
+    color:#fff;padding:10px 16px;font-size:13px;letter-spacing:2px;cursor:pointer;margin-top:10px}
+  button:hover{background:var(--purple)}
+  .rationlevel{font-family:var(--display);font-size:26px;letter-spacing:2px}
+  .tablewrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<header>
+  <div class="tagline">when there isn't enough, fairness is infrastructure.</div>
+  <h1>RATION</h1>
+</header>
+<main>
+
+  <div class="box">
+    <h2>&gt; SECTOR 7 — SUPPLY STATUS <span class="hint" style="float:right" id="pop"></span></h2>
+    <div class="tiles" id="tiles"></div>
+  </div>
+
+  <div class="box">
+    <h2>&gt; SCENARIO CONTROLS</h2>
+    <div class="controls">
+      <div>
+        <label>PLANNING HORIZON — stretch stock across <span class="ctlval" id="hz-v">14</span> DAYS</label>
+        <input type="range" id="hz" min="3" max="30" value="14">
+      </div>
+      <div>
+        <label>SUPPLY SHOCK — raid / spoilage / loss: <span class="ctlval" id="shock-v">0%</span></label>
+        <input type="range" id="shock" min="0" max="60" value="0">
+      </div>
+      <div>
+        <label>NEW ARRIVALS — refugees admitted: <span class="ctlval" id="arrivals-v">0</span> PEOPLE</label>
+        <input type="range" id="arrivals" min="0" max="40" value="0">
+      </div>
+    </div>
+  </div>
+
+  <div class="box">
+    <h2>&gt; TODAY'S ALLOCATION ORDER</h2>
+    <div class="tablewrap">
+      <table id="alloc-table">
+        <thead>
+          <tr><th>HOUSEHOLD</th><th>PPL</th><th>CHILD</th><th>MED</th>
+              <th style="text-align:right">WATER (L)</th><th style="text-align:right">FOOD (kcal)</th>
+              <th style="text-align:right">MEDS (dose)</th><th style="text-align:right">POWER (kWh)</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <button id="add-hh">+ REGISTER HOUSEHOLD</button>
+    <button id="copy-plan">COPY ALLOCATION ORDER</button>
+    <div class="hint" style="margin-top:8px">Allocations are proportional to computed need — children at 0.7 consumption (water/food), medical households at 4× medicine. The algorithm is public; everyone can verify their share. No favoritism, no black market math.</div>
+  </div>
+
+</main>
+<script>
+const $ = id => document.getElementById(id);
+
+/* ---------- data ---------- */
+const resources = [
+  { key:'water', name:'WATER',  unit:'L',    stock:5200,   rate:4,    childFactor:0.7, medMult:1 },
+  { key:'food',  name:'FOOD',   unit:'kcal', stock:920000, rate:2000, childFactor:0.7, medMult:1 },
+  { key:'meds',  name:'MEDICINE', unit:'dose', stock:340,  rate:0.2,  childFactor:1,   medMult:4 },
+  { key:'power', name:'POWER',  unit:'kWh',  stock:410,    rate:0.8,  childFactor:1,   medMult:1 },
+];
+let households = [
+  { name:'ASHFORD', people:4, children:2, med:false },
+  { name:'OKONKWO', people:2, children:0, med:true  },
+  { name:'REYES',   people:5, children:3, med:false },
+  { name:'KOWALSKI',people:1, children:0, med:false },
+  { name:'TRAN',    people:3, children:1, med:true  },
+  { name:'DELACROIX',people:6, children:2, med:false },
+];
+
+/* ---------- model ---------- */
+function needOf(hh, r){
+  const adults = hh.people - hh.children;
+  const eff = adults + hh.children * r.childFactor;
+  return eff * r.rate * (hh.med ? r.medMult : 1);
+}
+function compute(){
+  const shock = parseInt($('shock').value,10)/100;
+  const horizon = parseInt($('hz').value,10);
+  const arrivals = parseInt($('arrivals').value,10);
+  const hhs = households.slice();
+  if (arrivals > 0) hhs.push({ name:'NEW ARRIVALS', people:arrivals, children:Math.round(arrivals*0.3), med:false, virtual:true });
+  return resources.map(r => {
+    const stock = r.stock * (1 - shock);
+    const daily = hhs.reduce((s,hh) => s + needOf(hh, r), 0);
+    const days = daily > 0 ? stock/daily : Infinity;
+    const factor = Math.min(1, stock / (daily * horizon)); // stretch across horizon
+    return { r, stock, daily, days, factor,
+      alloc: hhs.map(hh => ({ hh, amt: needOf(hh, r) * factor })) };
+  });
+}
+
+/* ---------- render ---------- */
+function fmt(n, unit){
+  if (unit === 'kcal') return Math.round(n).toLocaleString();
+  return (Math.round(n*10)/10).toLocaleString();
+}
+function statusOf(days){
+  if (days < 7)  return ['critical', '⚠ CRITICAL'];
+  if (days < 14) return ['caution',  '◐ CAUTION'];
+  return ['good', '✓ STABLE'];
+}
+function render(){
+  const data = compute();
+  const totalPeople = data[0].alloc.reduce((s,a) => s + a.hh.people, 0);
+  $('pop').textContent = 'POP: ' + totalPeople;
+
+  // tiles
+  $('tiles').innerHTML = data.map(d => {
+    const [cls, label] = statusOf(d.days);
+    const pct = Math.min(100, 100 * d.stock / d.r.stock);
+    return '<div class="tile">' +
+      '<div class="rname">' + d.r.name + '</div>' +
+      '<div class="days">' + (isFinite(d.days) ? d.days.toFixed(1) : '∞') + '</div>' +
+      '<div class="unit">DAYS OF SUPPLY · ' + fmt(d.stock, d.r.unit) + ' ' + d.r.unit + ' on hand</div>' +
+      '<span class="chip ' + cls + '">' + label + '</span>' +
+      '<div class="unit" style="margin-top:6px">RATION LEVEL <span class="rationlevel" style="color:' +
+        (d.factor < 0.6 ? 'var(--warn)' : d.factor < 0.9 ? 'var(--accent)' : 'var(--ok)') + '">' +
+        Math.round(d.factor*100) + '%</span> of full need</div>' +
+      '<div class="stockbar" title="stock remaining vs original"><i style="width:' + pct + '%"></i></div>' +
+      '</div>';
+  }).join('');
+
+  // table
+  const maxAmt = {};
+  data.forEach(d => maxAmt[d.r.key] = Math.max(...d.alloc.map(a => a.amt), 1));
+  const hhs = data[0].alloc.map(a => a.hh);
+  $('rows').innerHTML = hhs.map((hh, i) => {
+    const cells = data.map(d => {
+      const amt = d.alloc[i].amt;
+      const w = Math.round(54 * amt / maxAmt[d.r.key]);
+      return '<td class="num"><span class="alloc"><span class="bar"><i style="width:' + w + 'px"></i></span>' +
+        fmt(amt, d.r.unit) + '</span></td>';
+    }).join('');
+    if (hh.virtual) {
+      return '<tr><td class="hhname">⊕ ' + hh.name + '</td><td class="num">' + hh.people +
+        '</td><td class="num">' + hh.children + '</td><td>—</td>' + cells + '</tr>';
+    }
+    return '<tr>' +
+      '<td class="hhname">' + hh.name + '</td>' +
+      '<td class="num"><input type="number" min="1" max="20" value="' + hh.people + '" data-i="' + i + '" data-f="people"></td>' +
+      '<td class="num"><input type="number" min="0" max="20" value="' + hh.children + '" data-i="' + i + '" data-f="children"></td>' +
+      '<td><input type="checkbox" ' + (hh.med ? 'checked' : '') + ' data-i="' + i + '" data-f="med">' +
+        (hh.med ? ' <span class="medflag">4× MEDS</span>' : '') + '</td>' +
+      cells + '</tr>';
+  }).join('');
+
+  // wire row inputs
+  $('rows').querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const hh = households[parseInt(inp.dataset.i,10)];
+      const f = inp.dataset.f;
+      if (f === 'med') hh.med = inp.checked;
+      else {
+        hh[f] = Math.max(0, parseInt(inp.value,10) || 0);
+        if (hh.children > hh.people) hh.children = hh.people;
+      }
+      render();
+    });
+  });
+}
+
+/* ---------- controls ---------- */
+['hz','shock','arrivals'].forEach(id => {
+  $(id).addEventListener('input', () => {
+    $('hz-v').textContent = $('hz').value;
+    $('shock-v').textContent = $('shock').value + '%';
+    $('arrivals-v').textContent = $('arrivals').value;
+    render();
+  });
+});
+$('add-hh').addEventListener('click', () => {
+  const tags = ['MERCER','IBARRA','SONG','ADEYEMI','VOLKOV','NAKAMURA','OSEI','LINDQVIST'];
+  households.push({ name: tags[Math.floor(Math.random()*tags.length)] + '-' + (households.length+1),
+    people: 2, children: 0, med: false });
+  render();
+});
+$('copy-plan').addEventListener('click', async () => {
+  const data = compute();
+  const lines = ['SECTOR 7 — ALLOCATION ORDER — ' + new Date().toLocaleDateString(),
+    'Horizon ' + $('hz').value + 'd · shock ' + $('shock').value + '% · arrivals ' + $('arrivals').value, ''];
+  data[0].alloc.forEach((_, i) => {
+    const hh = data[0].alloc[i].hh;
+    lines.push(hh.name + ' (' + hh.people + 'p): ' +
+      data.map(d => fmt(d.alloc[i].amt, d.r.unit) + ' ' + d.r.unit + ' ' + d.r.name.toLowerCase()).join(' · '));
+  });
+  lines.push('', 'Ration levels: ' + data.map(d => d.r.name + ' ' + Math.round(d.factor*100) + '%').join(' · '));
+  try { await navigator.clipboard.writeText(lines.join('\n')); $('copy-plan').textContent = 'COPIED ✓'; }
+  catch(e){ $('copy-plan').textContent = 'COPY BLOCKED'; }
+  setTimeout(() => $('copy-plan').textContent = 'COPY ALLOCATION ORDER', 1600);
+});
+
+render();
+</script>
+</body>
+</html>

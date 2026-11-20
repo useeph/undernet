@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PANOPTICON — see what they see</title>
+<!--
+  PANOPTICON — a mirror held up to the surveillance machine.
+  Patriot HackFest Fall 2026 — Track: Best Solution for a Dystopian World
+
+  Everything on this page is harvested live from the visitor's own browser,
+  with ZERO permissions requested — exactly what any website can do silently.
+  It then shows the countermeasure for each leak. Awareness is the weapon.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d0618; --panel:#170b2b; --panel2:#1f1038;
+    --purple:#7c5cff; --purple-dim:#4a3580;
+    --text:#cfc3f5; --accent:#f5e9a8; --warn:#ff5c7a; --ok:#6effa3;
+    --mono:'Share Tech Mono',monospace; --display:'VT323',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;
+    background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.18) 2px 4px)}
+  header{padding:10px 14px 8px;border-bottom:1px solid var(--purple-dim);background:var(--panel)}
+  .tagline{color:var(--purple);font-size:12px;letter-spacing:2px}
+  h1{font-family:var(--display);font-size:34px;color:#efe9ff;letter-spacing:4px;line-height:1}
+  h1 .eye{color:var(--warn)}
+  main{max-width:680px;margin:0 auto;padding:16px 14px 40px}
+  .box{background:var(--panel);border:1px solid var(--purple-dim);padding:14px;margin-bottom:14px}
+  .box h2{font-size:13px;color:var(--accent);letter-spacing:2px;margin-bottom:10px}
+  .hint{font-size:11px;color:var(--purple);line-height:1.5}
+  .row{display:flex;gap:10px;padding:5px 0;border-bottom:1px dashed rgba(74,53,128,.4);
+    font-size:12px;line-height:1.5;opacity:0;transform:translateY(4px);transition:all .3s}
+  .row.on{opacity:1;transform:none}
+  .row .k{flex:0 0 150px;color:var(--purple)}
+  .row .v{flex:1;color:var(--text);word-break:break-word}
+  .row .v .so{display:block;color:var(--purple-dim);font-size:10px}
+  .row .v b{color:var(--warn);font-weight:normal}
+  /* exposure meter */
+  .meter-wrap{margin:6px 0 4px}
+  .meter{height:16px;background:var(--bg);border:1px solid var(--purple-dim);position:relative}
+  .meter .fill{height:100%;width:0%;background:linear-gradient(90deg,var(--purple),var(--warn));transition:width .6s}
+  .meter-label{display:flex;justify-content:space-between;font-size:11px;color:var(--purple);margin-top:4px}
+  .exposure-big{font-family:var(--display);font-size:52px;text-align:center;color:var(--warn);
+    text-shadow:0 0 14px var(--warn);letter-spacing:3px}
+  .exposure-sub{text-align:center;font-size:11px;color:var(--purple);letter-spacing:2px;margin-bottom:6px}
+  /* behavior grid */
+  .bgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+  .tile{background:var(--bg);border:1px solid var(--purple-dim);padding:10px;text-align:center}
+  .tile .n{font-family:var(--display);font-size:30px;color:#fff;line-height:1}
+  .tile .l{font-size:10px;color:var(--purple);letter-spacing:1px;margin-top:4px}
+  button{font-family:var(--mono);background:var(--purple-dim);border:1px solid var(--purple);
+    color:#fff;padding:10px 16px;font-size:13px;letter-spacing:2px;cursor:pointer;width:100%;margin-top:10px}
+  button:hover{background:var(--purple)}
+  .cm{font-size:12px;line-height:1.7}
+  .cm b{color:var(--ok);font-weight:normal}
+  .flash{animation:flash 1.4s steps(2) infinite;color:var(--warn);font-size:11px;letter-spacing:2px;text-align:center;margin-top:8px}
+  @keyframes flash{50%{opacity:.2}}
+</style>
+</head>
+<body>
+<header>
+  <div class="tagline">you never logged in. you never said yes. they know anyway.</div>
+  <h1>PANOPTIC<span class="eye">Θ</span>N</h1>
+</header>
+<main>
+
+  <div class="box">
+    <div class="exposure-sub">EXPOSURE INDEX</div>
+    <div class="exposure-big" id="score">0%</div>
+    <div class="meter-wrap"><div class="meter"><div class="fill" id="meterfill"></div></div>
+      <div class="meter-label"><span>INVISIBLE</span><span>FULLY PROFILED</span></div></div>
+    <div class="flash" id="sweepmsg">▚▚ SWEEPING YOUR DEVICE — NO PERMISSION REQUIRED ▚▚</div>
+  </div>
+
+  <div class="box">
+    <h2>&gt; DOSSIER — what this page just learned about you</h2>
+    <div id="dossier"></div>
+    <button id="copy-btn">COPY MY DOSSIER</button>
+  </div>
+
+  <div class="box">
+    <h2>&gt; BEHAVIORAL TRACK — live, since you opened this page</h2>
+    <div class="bgrid">
+      <div class="tile"><div class="n" id="b-time">0s</div><div class="l">OBSERVED FOR</div></div>
+      <div class="tile"><div class="n" id="b-mouse">0</div><div class="l">MOUSE TRAVEL (px)</div></div>
+      <div class="tile"><div class="n" id="b-clicks">0</div><div class="l">CLICKS/TAPS</div></div>
+      <div class="tile"><div class="n" id="b-keys">0</div><div class="l">KEYSTROKES</div></div>
+      <div class="tile"><div class="n" id="b-scroll">0</div><div class="l">SCROLL (px)</div></div>
+      <div class="tile"><div class="n" id="b-cadence">—</div><div class="l">TYPING CADENCE (ms)</div></div>
+    </div>
+    <div class="hint" style="margin-top:8px">Motion and typing rhythm are fingerprints too — stable enough to re-identify a person across sites, even behind a VPN.</div>
+  </div>
+
+  <div class="box">
+    <h2>&gt; COUNTERMEASURES — fight back</h2>
+    <div class="cm">
+      ■ <b>Fingerprint:</b> use a browser that randomizes canvas/WebGL (Tor Browser, Brave, Firefox RFP)<br>
+      ■ <b>Network identity:</b> VPN or Tor hides your IP; your fingerprint can still betray you — fix both<br>
+      ■ <b>Timezone + language:</b> they geolocate you without GPS; Tor Browser normalizes both<br>
+      ■ <b>Hardware specs:</b> uncommon specs = unique you; common hardware or a normalized browser blends in<br>
+      ■ <b>Behavior:</b> extensions can inject noise into pointer/typing telemetry<br>
+      ■ <b>The real fix:</b> make surveillance expensive — look like everyone else.
+    </div>
+  </div>
+
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const dossier = $('dossier');
+let found = 0, total = 0;
+
+function addRow(k, v, so, leaked=true){
+  total++;
+  if (leaked && v !== undefined && v !== null && v !== '' && v !== '—') found++;
+  const r = document.createElement('div');
+  r.className = 'row';
+  r.innerHTML = '<div class="k">' + k + '</div><div class="v"><b>' +
+    String(v) + '</b><span class="so">' + so + '</span></div>';
+  dossier.appendChild(r);
+  return r;
+}
+function updateScore(){
+  const pct = Math.round(100 * found / Math.max(total, 1));
+  $('score').textContent = pct + '%';
+  $('meterfill').style.width = pct + '%';
+}
+
+/* ---------- canvas fingerprint ---------- */
+async function canvasHash(){
+  try {
+    const c = document.createElement('canvas');
+    c.width = 220; c.height = 40;
+    const x = c.getContext('2d');
+    x.textBaseline = 'alphabetic';
+    x.font = '16px "Arial"';
+    x.fillStyle = '#f60'; x.fillRect(10, 2, 80, 24);
+    x.fillStyle = '#069'; x.fillText('PANOPTICON :: 𝔀𝓱𝓸?', 4, 22);
+    x.fillStyle = 'rgba(102,204,0,.7)'; x.fillText('PANOPTICON :: 𝔀𝓱𝓸?', 6, 24);
+    const data = c.toDataURL();
+    const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(data + navigator.userAgent + screen.width + screen.height));
+    return [...new Uint8Array(h)].slice(0, 8).map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
+  } catch(e){ return null; }
+}
+function webglInfo(){
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  } catch(e){ return null; }
+}
+
+/* ---------- the sweep ---------- */
+const lines = [];
+function queue(k, v, so){ lines.push([k, v, so]); }
+
+async function buildSweep(){
+  const n = navigator, s = screen;
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+
+  queue('BROWSER BUILD', n.userAgent, 'narrows you to a browser version + OS — first cut of the haystack');
+  queue('OPERATING SYSTEM', (n.userAgentData && n.userAgentData.platform) || n.platform || '—', 'profiling + exploit targeting');
+  queue('LANGUAGES', (n.languages || [n.language]).join(', '), 'reveals nationality and likely location');
+  queue('TIMEZONE', tz, 'geolocates you to a region with no GPS and no permission');
+  queue('LOCAL TIME', new Date().toLocaleString(), 'cross-checked against timezone to spot VPN users');
+  queue('SCREEN', s.width + '×' + s.height + ' @' + (window.devicePixelRatio||1) + 'x, ' + s.colorDepth + '-bit', 'rare resolutions make you nearly unique');
+  queue('CPU CORES', n.hardwareConcurrency || '—', 'hardware class fingerprint');
+  if (n.deviceMemory) queue('DEVICE MEMORY', '≈' + n.deviceMemory + ' GB', 'another hardware bit — bits multiply into identity');
+  queue('TOUCH POINTS', n.maxTouchPoints, 'phone vs laptop vs kiosk');
+  const gpu = webglInfo();
+  if (gpu) queue('GPU', gpu, 'often the single most identifying string your device leaks');
+  const conn = n.connection;
+  if (conn && conn.effectiveType) queue('CONNECTION', conn.effectiveType + (conn.downlink ? ', ~' + conn.downlink + ' Mbps' : ''), 'mobile vs broadband; correlates your movements');
+  queue('COOKIES ENABLED', n.cookieEnabled ? 'YES' : 'NO', 'classic cross-site tracking channel');
+  queue('TRACKING CONSENT', n.doNotTrack === '1' ? 'you asked NOT to be tracked' : 'never asked / default', 'the Do-Not-Track signal — routinely ignored by trackers');
+
+  if (n.getBattery) {
+    try {
+      const b = await n.getBattery();
+      queue('BATTERY', Math.round(b.level*100) + '%' + (b.charging ? ', CHARGING' : ', DISCHARGING'), 'yes — websites can read your battery. used to re-identify devices');
+    } catch(e){}
+  }
+  const fp = await canvasHash();
+  if (fp) queue('DEVICE FINGERPRINT', fp, 'canvas-render hash: survives incognito mode, VPNs and cleared cookies');
+
+  // reveal with drama
+  for (const [k, v, so] of lines) {
+    const r = addRow(k, v, so);
+    await new Promise(res => setTimeout(res, 170));
+    r.classList.add('on');
+    updateScore();
+  }
+  $('sweepmsg').textContent = '▚▚ SWEEP COMPLETE — ' + found + ' SIGNALS HARVESTED, 0 PERMISSIONS ASKED ▚▚';
+}
+buildSweep();
+
+/* ---------- behavioral telemetry ---------- */
+let mouse = 0, lastXY = null, clicks = 0, keys = 0, scrolled = 0, keyTimes = [];
+const t0 = Date.now();
+addEventListener('pointermove', e => {
+  if (lastXY) mouse += Math.hypot(e.clientX - lastXY[0], e.clientY - lastXY[1]);
+  lastXY = [e.clientX, e.clientY];
+}, {passive:true});
+addEventListener('pointerdown', () => clicks++, {passive:true});
+addEventListener('keydown', () => { keys++; keyTimes.push(Date.now()); if (keyTimes.length > 40) keyTimes.shift(); }, {passive:true});
+addEventListener('scroll', () => { scrolled = Math.max(scrolled, scrollY); }, {passive:true});
+setInterval(() => {
+  $('b-time').textContent = Math.floor((Date.now() - t0)/1000) + 's';
+  $('b-mouse').textContent = Math.round(mouse).toLocaleString();
+  $('b-clicks').textContent = clicks;
+  $('b-keys').textContent = keys;
+  $('b-scroll').textContent = Math.round(scrolled).toLocaleString();
+  if (keyTimes.length > 2) {
+    let d = 0;
+    for (let i = 1; i < keyTimes.length; i++) d += keyTimes[i] - keyTimes[i-1];
+    $('b-cadence').textContent = Math.round(d / (keyTimes.length - 1));
+  }
+}, 500);
+
+/* ---------- copy dossier ---------- */
+$('copy-btn').addEventListener('click', async () => {
+  const txt = 'MY PANOPTICON DOSSIER\n' +
+    [...document.querySelectorAll('.row')].map(r =>
+      r.querySelector('.k').textContent + ': ' + r.querySelector('.v b').textContent).join('\n');
+  try { await navigator.clipboard.writeText(txt); $('copy-btn').textContent = 'COPIED ✓'; }
+  catch(e){ $('copy-btn').textContent = 'COPY BLOCKED — SELECT MANUALLY'; }
+  setTimeout(() => $('copy-btn').textContent = 'COPY MY DOSSIER', 1600);
+});
+</script>
+</body>
+</html>

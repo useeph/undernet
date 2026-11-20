@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEADDROP — serverless resistance comms</title>
+<!--
+  DEADDROP — peer-to-peer encrypted messenger for when the network falls.
+  Patriot HackFest Fall 2026 — Track: Best Solution for a Dystopian World
+
+  How it works:
+  - WebRTC data channels: messages travel DIRECTLY between the two devices.
+    No message ever touches a server. (A public PeerJS broker is used once,
+    only to exchange connection info — it never sees message content.)
+  - Transport is DTLS-encrypted by WebRTC itself. Optionally, both sides can
+    set the same channel phrase: messages are then ALSO encrypted end-to-end
+    with AES-256-GCM (key derived via PBKDF2) before leaving the device.
+  - Messages can carry a self-destruct timer, and BURN wipes both ends.
+
+  Run: host on GitHub Pages / Netlify (or open the file directly in two
+  browsers on laptops). Each side gets a callsign; one side enters the
+  other's callsign to link.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0618;
+    --panel: #170b2b;
+    --panel2: #1f1038;
+    --purple: #7c5cff;
+    --purple-dim: #4a3580;
+    --text: #cfc3f5;
+    --accent: #f5e9a8;   /* the hackathon's yellow */
+    --warn: #ff5c7a;
+    --ok: #6effa3;
+    --mono: 'Share Tech Mono', monospace;
+    --display: 'VT323', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  /* CRT scanline overlay */
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg, transparent 0 2px, rgba(0,0,0,.18) 2px 4px);
+    z-index: 999;
+  }
+  header {
+    padding: 10px 14px 6px;
+    border-bottom: 1px solid var(--purple-dim);
+    background: var(--panel);
+    flex: none;
+  }
+  .tagline { color: var(--purple); font-size: 12px; letter-spacing: 2px; }
+  h1 {
+    font-family: var(--display);
+    font-size: 34px;
+    color: #efe9ff;
+    letter-spacing: 4px;
+    line-height: 1;
+  }
+  h1 .blink { color: var(--accent); animation: blink 1.2s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  #statusbar {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    font-size: 11px; margin-top: 6px; color: var(--purple);
+  }
+  #statusbar b { color: var(--text); font-weight: normal; }
+  .ok { color: var(--ok) !important; }
+  .bad { color: var(--warn) !important; }
+  .accent { color: var(--accent) !important; }
+
+  main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+  /* ---- lobby ---- */
+  #lobby { padding: 18px 14px; max-width: 520px; width: 100%; margin: 0 auto; overflow-y: auto; }
+  .box {
+    background: var(--panel);
+    border: 1px solid var(--purple-dim);
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .box h2 { font-size: 13px; color: var(--accent); letter-spacing: 2px; margin-bottom: 8px; }
+  .callsign {
+    font-family: var(--display);
+    font-size: 40px;
+    color: #fff;
+    text-align: center;
+    letter-spacing: 3px;
+    padding: 8px 0;
+    text-shadow: 0 0 12px var(--purple);
+    user-select: all;
+  }
+  .hint { font-size: 11px; color: var(--purple); line-height: 1.5; }
+  label { display: block; font-size: 11px; color: var(--purple); margin: 10px 0 4px; letter-spacing: 1px; }
+  input[type=text], input[type=password] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--purple-dim);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 16px;
+    padding: 10px;
+    outline: none;
+    text-transform: uppercase;
+  }
+  input[type=password] { text-transform: none; }
+  input:focus { border-color: var(--purple); box-shadow: 0 0 8px rgba(124,92,255,.35); }
+  button {
+    font-family: var(--mono);
+    background: var(--purple-dim);
+    border: 1px solid var(--purple);
+    color: #fff;
+    padding: 10px 16px;
+    font-size: 14px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 10px;
+  }
+  button:hover { background: var(--purple); }
+  button:disabled { opacity: .4; cursor: wait; }
+  button.danger { background: #3a0f1e; border-color: var(--warn); color: var(--warn); }
+  button.danger:hover { background: var(--warn); color: #000; }
+
+  /* ---- chat ---- */
+  #chat { display: none; flex: 1; flex-direction: column; min-height: 0; }
+  #messages {
+    flex: 1; overflow-y: auto; padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .msg {
+    max-width: 85%;
+    padding: 8px 10px;
+    font-size: 14px;
+    line-height: 1.45;
+    border: 1px solid var(--purple-dim);
+    background: var(--panel);
+    word-wrap: break-word;
+    white-space: pre-wrap;
+  }
+  .msg.me { align-self: flex-end; background: var(--panel2); border-color: var(--purple); }
+  .msg.them { align-self: flex-start; }
+  .msg.sys {
+    align-self: center;
+    background: none; border: none;
+    color: var(--purple); font-size: 11px; letter-spacing: 1px;
+    text-align: center;
+  }
+  .msg .meta { font-size: 10px; color: var(--purple); margin-top: 4px; display: flex; gap: 8px; }
+  .msg .fuse { color: var(--warn); }
+  .msg.burned { color: var(--purple-dim); border-style: dashed; font-style: italic; }
+  #composer {
+    flex: none;
+    display: flex; gap: 8px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--purple-dim);
+    background: var(--panel);
+  }
+  #composer input[type=text] {
+    flex: 1; text-transform: none; font-size: 16px;
+  }
+  #composer select {
+    background: var(--bg); color: var(--warn);
+    border: 1px solid var(--purple-dim);
+    font-family: var(--mono); font-size: 12px; padding: 0 4px;
+  }
+  #composer button { width: auto; margin: 0; padding: 0 18px; }
+  #burnall {
+    width: auto; margin: 0; padding: 0 10px; font-size: 11px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="tagline">they're watching. we don't use their wires.</div>
+  <h1>DEADDROP<span class="blink">_</span></h1>
+  <div id="statusbar">
+    <span>LINK: <b id="st-link" class="bad">DOWN</b></span>
+    <span>SERVERS STORING MSGS: <b class="ok">0</b></span>
+    <span>CRYPTO: <b id="st-crypto">DTLS</b></span>
+    <span>PEER: <b id="st-peer">—</b></span>
+  </div>
+</header>
+
+<main>
+  <!-- ======== LOBBY ======== -->
+  <div id="lobby">
+    <div class="box">
+      <h2>&gt; YOUR CALLSIGN</h2>
+      <div class="callsign" id="my-callsign">······</div>
+      <div class="hint">Read it to your contact over any channel you trust — out loud, on paper, dead drop. It is the only thing anyone needs.</div>
+    </div>
+    <div class="box">
+      <h2>&gt; ESTABLISH LINK</h2>
+      <label>THEIR CALLSIGN</label>
+      <input type="text" id="remote-id" placeholder="GHOST-XXXX" autocomplete="off" spellcheck="false">
+      <label>CHANNEL PHRASE (optional — enables AES-256 end-to-end lock. Both sides must enter the same phrase.)</label>
+      <input type="password" id="phrase" placeholder="leave empty for transport encryption only">
+      <button id="connect-btn">CONNECT ▸</button>
+      <div class="hint" style="margin-top:8px">…or wait here. If they dial your callsign, the link opens by itself.</div>
+    </div>
+    <div class="box">
+      <h2>&gt; PROTOCOL</h2>
+      <div class="hint">
+        ■ Messages travel device-to-device over WebRTC. No server relays or stores them.<br>
+        ■ A public broker is used once per session to find each other — it never sees messages.<br>
+        ■ Self-destruct timers redact messages on BOTH ends.<br>
+        ■ BURN wipes the entire conversation on both devices instantly.
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== CHAT ======== -->
+  <div id="chat">
+    <div id="messages"></div>
+    <div id="composer">
+      <select id="ttl" title="self-destruct">
+        <option value="0">∞</option>
+        <option value="10">10s</option>
+        <option value="30">30s</option>
+        <option value="60">60s</option>
+      </select>
+      <input type="text" id="msg-input" placeholder="transmit…" autocomplete="off">
+      <button id="send-btn">TX</button>
+      <button id="burnall" class="danger" title="wipe both ends">BURN</button>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ============================== identity ============================== */
+const PREFIX = 'deaddrop-v1-';
+function makeCallsign() {
+  const words = ['GHOST','RAVEN','CIPHER','ECHO','VIPER','ONYX','DELTA','NOMAD','WRAITH','STATIC'];
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no confusable 0/O 1/I/L
+  let tail = '';
+  const rnd = new Uint8Array(4);
+  crypto.getRandomValues(rnd);
+  for (const b of rnd) tail += chars[b % chars.length];
+  return words[rnd[0] % words.length] + '-' + tail;
+}
+const myCallsign = makeCallsign();
+
+/* ============================== crypto ============================== */
+let aesKey = null; // set when a channel phrase is provided
+async function deriveKey(phrase) {
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', enc.encode(phrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: enc.encode('deaddrop-v1-salt'), iterations: 150000, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function sealText(text) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, new TextEncoder().encode(text));
+  return { iv: btoa(String.fromCharCode(...iv)), ct: btoa(String.fromCharCode(...new Uint8Array(ct))) };
+}
+async function openSealed(box) {
+  const iv = Uint8Array.from(atob(box.iv), c => c.charCodeAt(0));
+  const ct = Uint8Array.from(atob(box.ct), c => c.charCodeAt(0));
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ct);
+  return new TextDecoder().decode(pt);
+}
+
+/* ============================== dom ============================== */
+const $ = id => document.getElementById(id);
+const stLink = $('st-link'), stCrypto = $('st-crypto'), stPeer = $('st-peer');
+const messagesEl = $('messages');
+$('my-callsign').textContent = myCallsign;
+
+function setLink(state) { // 'down' | 'dialing' | 'secure'
+  stLink.className = state === 'secure' ? 'ok' : state === 'dialing' ? 'accent' : 'bad';
+  stLink.textContent = state === 'secure' ? 'DIRECT P2P ◉' : state === 'dialing' ? 'DIALING…' : 'DOWN';
+}
+function sysLine(text) {
+  const d = document.createElement('div');
+  d.className = 'msg sys';
+  d.textContent = '── ' + text + ' ──';
+  messagesEl.appendChild(d);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+function addMessage(text, who, ttl) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + who;
+  const body = document.createElement('div');
+  body.textContent = text;
+  d.appendChild(body);
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.innerHTML = '<span>' + (who === 'me' ? myCallsign : remoteCallsign) + '</span>' +
+                   '<span>' + new Date().toLocaleTimeString() + '</span>' +
+                   (aesKey ? '<span>AES-256 ⚿</span>' : '');
+  d.appendChild(meta);
+  messagesEl.appendChild(d);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  if (ttl > 0) armFuse(d, body, meta, ttl);
+  return d;
+}
+function armFuse(box, body, meta, ttl) {
+  const fuse = document.createElement('span');
+  fuse.className = 'fuse';
+  meta.appendChild(fuse);
+  let left = ttl;
+  fuse.textContent = '🔥 ' + left + 's';
+  const timer = setInterval(() => {
+    left--;
+    if (left <= 0) {
+      clearInterval(timer);
+      body.textContent = '[ MESSAGE BURNED ]';
+      box.classList.add('burned');
+      fuse.remove();
+    } else fuse.textContent = '🔥 ' + left + 's';
+  }, 1000);
+}
+function burnEverything(announce) {
+  messagesEl.innerHTML = '';
+  sysLine(announce ? 'YOU BURNED THE CHANNEL' : 'REMOTE BURNED THE CHANNEL');
+  sysLine('no record remains on either device');
+}
+
+/* ============================== peer link ============================== */
+let peer = null, conn = null, remoteCallsign = '—';
+
+function initPeer() {
+  peer = new Peer(PREFIX + myCallsign);
+  peer.on('open', () => { /* registered with broker; callsign is live */ });
+  peer.on('connection', c => acceptConnection(c));       // they dialed us
+  peer.on('error', err => {
+    if (err.type === 'peer-unavailable') {
+      sysLineLobby('NO ANSWER — check their callsign, keep the page open and retry.');
+      resetConnectBtn();
+    } else if (err.type === 'unavailable-id') {
+      location.reload(); // callsign collision: regenerate
+    } else {
+      sysLineLobby('BROKER ERROR: ' + err.type + ' — retrying may help.');
+      resetConnectBtn();
+    }
+  });
+}
+function sysLineLobby(text) {
+  // before chat exists, surface errors under the connect box
+  let n = $('lobby-note');
+  if (!n) {
+    n = document.createElement('div');
+    n.id = 'lobby-note';
+    n.className = 'hint';
+    n.style.cssText = 'color:var(--warn);margin-top:8px';
+    $('connect-btn').after(n);
+  }
+  n.textContent = text;
+}
+function resetConnectBtn() {
+  const b = $('connect-btn');
+  b.disabled = false; b.textContent = 'CONNECT ▸';
+  setLink('down');
+}
+
+async function prepareCrypto() {
+  const phrase = $('phrase').value;
+  if (phrase && crypto.subtle) {
+    aesKey = await deriveKey(phrase);
+    stCrypto.textContent = 'AES-256-GCM + DTLS';
+    stCrypto.className = 'ok';
+  } else {
+    aesKey = null;
+    stCrypto.textContent = 'DTLS (transport)';
+  }
+}
+
+function dial() {
+  const raw = $('remote-id').value.trim().toUpperCase();
+  if (!raw) return;
+  const b = $('connect-btn');
+  b.disabled = true; b.textContent = 'DIALING…';
+  setLink('dialing');
+  prepareCrypto().then(() => {
+    const c = peer.connect(PREFIX + raw, { reliable: true });
+    wireConnection(c, raw);
+  });
+}
+function acceptConnection(c) {
+  prepareCrypto().then(() => {
+    const raw = c.peer.replace(PREFIX, '');
+    wireConnection(c, raw);
+  });
+}
+function wireConnection(c, callsign) {
+  if (conn) { c.close(); return; } // one link at a time
+  conn = c;
+  remoteCallsign = callsign;
+  c.on('open', () => {
+    stPeer.textContent = remoteCallsign;
+    setLink('secure');
+    $('lobby').style.display = 'none';
+    $('chat').style.display = 'flex';
+    sysLine('DIRECT LINK ESTABLISHED WITH ' + remoteCallsign);
+    sysLine(aesKey ? 'channel locked: AES-256-GCM end-to-end' : 'transport encrypted (DTLS). set a shared phrase for E2E lock');
+    $('msg-input').focus();
+  });
+  c.on('data', onData);
+  c.on('close', () => {
+    setLink('down');
+    sysLine('LINK LOST — ' + remoteCallsign + ' went dark');
+    conn = null;
+  });
+}
+
+async function onData(raw) {
+  let m; try { m = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return; }
+  if (m.t === 'burn') return burnEverything(false);
+  if (m.t !== 'msg') return;
+  let text;
+  if (m.enc) {
+    if (!aesKey) { addMessage('[ ENCRYPTED — set the shared channel phrase and reconnect to read ]', 'them', 0); return; }
+    try { text = await openSealed(m.body); }
+    catch { addMessage('[ DECRYPTION FAILED — channel phrases do not match ]', 'them', 0); return; }
+  } else text = m.body;
+  addMessage(text, 'them', m.ttl | 0);
+}
+
+async function send() {
+  const input = $('msg-input');
+  const text = input.value.trim();
+  if (!text || !conn || !conn.open) return;
+  const ttl = parseInt($('ttl').value, 10);
+  const m = { t: 'msg', ttl, enc: !!aesKey };
+  m.body = aesKey ? await sealText(text) : text;
+  conn.send(JSON.stringify(m));
+  addMessage(text, 'me', ttl);
+  input.value = '';
+  input.focus();
+}
+
+/* ============================== wire up ============================== */
+$('connect-btn').addEventListener('click', dial);
+$('remote-id').addEventListener('keydown', e => { if (e.key === 'Enter') dial(); });
+$('send-btn').addEventListener('click', send);
+$('msg-input').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+$('burnall').addEventListener('click', () => {
+  if (conn && conn.open) conn.send(JSON.stringify({ t: 'burn' }));
+  burnEverything(true);
+});
+initPeer();
+</script>
+</body>
+</html>
