@@ -733,7 +733,12 @@ const Market = {
   load(){
     try{ const p = JSON.parse(localStorage.getItem('undernet-market-v1')); if (Array.isArray(p) && p.length) this.posts = p; }catch(e){}
     if (!this.posts.length) this.posts = SEED_POSTS.slice();
-    else this.merge(SEED_POSTS); // returning devices still pick up newly seeded postings
+    else {
+      /* returning devices pick up newly seeded postings — at the TOP of the board */
+      const have = new Set(this.posts.map(p => p.id));
+      const missing = SEED_POSTS.filter(s => !have.has(s.id));
+      if (missing.length) this.posts = missing.concat(this.posts);
+    }
     this.save();
   },
   save(){ try{ localStorage.setItem('undernet-market-v1', JSON.stringify(this.posts)); }catch(e){} },
