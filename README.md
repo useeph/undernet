@@ -31,6 +31,7 @@ A live Leaflet map (OpenStreetMap tiles, restyled dark) where the community logs
 - **Depletion forecasting (RATION):** linear burn-rate projection per resource at the current ration level, with a ±15% demand-noise band yielding best/worst-case dry dates and a projection sparkline.
 - **Identifiability model (PANOPTICON):** per-signal surprisal estimates (based on published fingerprinting studies) summed into a bits-of-identifying-information score — most visitors exceed the ~33 bits needed to be unique on Earth.
 - **Keystroke-dynamics biometric (PANOPTICON):** live mean/variance signature of typing rhythm, demonstrating cookie-less behavioral re-identification.
+- **LANTERN, two editions:** the in-app offline edition is a rule-based intent engine over the local resource map, barter board and ration ledger — it works with zero connectivity and nothing to subpoena. The [full edition](https://patriotai.gmu.edu/chat/d5aeee8a-c7ac-4e38-90d0-e46ae00e98bb) is an LLM agent running on GMU's own Patriot AI platform, grounded in the same Sector 7 field manual (see `sector7-field-manual.md`). Smart when connected, functional when the grid is down.
 - All hand-rolled in vanilla JS — no frameworks, no model downloads, keeps the zero-dependency, works-offline story intact.
 
 ## RATION — fairness as infrastructure
