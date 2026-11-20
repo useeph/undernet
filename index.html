@@ -17,11 +17,16 @@
   Each tool is an isolated module (IIFE) with its own localStorage namespace.
   Tabs route on the URL hash (#deaddrop, #vigil, #panopticon, #ration, #blindspot).
 -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d0618">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root {
     --bg:#0d0618; --panel:#170b2b; --panel2:#1f1038;
@@ -47,6 +52,10 @@
   .tab{font-family:var(--mono);font-size:11px;letter-spacing:1px;padding:8px 12px;white-space:nowrap;
     background:none;border:1px solid transparent;border-bottom:none;color:var(--purple);cursor:pointer}
   .tab.active{background:var(--bg);border-color:var(--purple-dim);color:var(--accent)}
+  #sectorbar{font-size:9px;letter-spacing:1.5px;color:var(--purple);padding:4px 0 5px;
+    border-top:1px dashed rgba(74,53,128,.5);margin-top:6px;white-space:nowrap;overflow-x:auto}
+  #sectorbar b{color:var(--accent);font-weight:normal}
+  #sectorbar .sev{color:var(--warn)}
   .app{display:none;flex:1;min-height:0;flex-direction:column}
   .app.active{display:flex}
   .pagewrap{flex:1;overflow-y:auto;padding:18px 14px 40px}
@@ -237,6 +246,7 @@
     <button class="tab" data-app="blindspot">⌖ BLINDSPOT</button>
     <button class="tab" data-app="patriot">✦ LANTERN</button>
   </nav>
+  <div id="sectorbar">SECTOR 7 · DAY <b id="sb-day">—</b> · POP <b>403</b> · <span id="sb-curfew">CURFEW —</span> · THREAT <b id="sb-threat">—</b></div>
 </header>
 
 <!-- ==================== DEADDROP ==================== -->
@@ -253,7 +263,9 @@
       <div class="box">
         <h2>&gt; YOUR CALLSIGN</h2>
         <div class="callsign" id="my-callsign">······</div>
-        <div class="hint">Read it to your contact over any channel you trust — out loud, on paper, dead drop. It is the only thing anyone needs.</div>
+        <div id="qr" style="display:flex;justify-content:center;padding:8px 0"></div>
+        <div class="hint" style="text-align:center">…or have them point their phone camera here: it opens DEADDROP and dials you automatically.</div>
+        <div class="hint" style="margin-top:6px">Read it to your contact over any channel you trust — out loud, on paper, dead drop. It is the only thing anyone needs.</div>
       </div>
       <div class="box">
         <h2>&gt; ESTABLISH LINK</h2>
@@ -284,6 +296,7 @@
       </select>
       <input type="text" id="msg-input" placeholder="transmit…" autocomplete="off">
       <button id="send-btn">TX</button>
+      <button id="syncgrid" title="send your map + barter board over this encrypted link" style="padding:0 10px;font-size:11px">⇅ SYNC</button>
       <button id="burnall" class="danger" title="wipe both ends">BURN</button>
     </div>
   </div>
@@ -319,6 +332,8 @@
         </select>
         <label>MASTER PHRASE — required to view or disarm (not to check in)</label>
         <input id="master" type="password" autocomplete="off">
+        <label>DURESS PHRASE (optional — if someone forces you to open the vault, give them this one: it shows an empty decoy and keeps the switch silently armed)</label>
+        <input id="duress" type="password" autocomplete="off">
         <button id="arm-btn">ARM THE SWITCH ▸</button>
         <div class="err" id="setup-err"></div>
         <div class="hint">The payload is sealed with AES-256-GCM the moment you arm. Miss one check-in and VIGIL unseals it and prepares transmission to your contact.</div>
@@ -641,6 +656,53 @@ const Market = {
   }
 };
 Market.load();
+/* grid snapshot + raw merge: used by DEADDROP's P2P sync even when the map tab was never opened */
+function gridSnapshot(){
+  let pts = [];
+  try{ pts = JSON.parse(localStorage.getItem('blindspot-v1')) || []; }catch(e){}
+  return { points: pts, posts: Market.posts };
+}
+function rawMergePoints(arr){
+  const OK = { camera:1, checkpoint:1, drone:1, safe:1, dead:1 };
+  let pts = [];
+  try{ pts = JSON.parse(localStorage.getItem('blindspot-v1')) || []; }catch(e){}
+  const have = new Set(pts.map(p => p.id));
+  let n = 0;
+  for (const p of (arr || [])){
+    if (!p || !p.id || have.has(String(p.id)) || !OK[p.t]) continue;
+    if (typeof p.lat !== 'number' || typeof p.lng !== 'number') continue;
+    pts.push({ id:String(p.id), t:p.t, lat:p.lat, lng:p.lng,
+      r: Math.min(+p.r || 0, 2000), note: String(p.note || '').slice(0, 140) });
+    n++;
+  }
+  if (n) try{ localStorage.setItem('blindspot-v1', JSON.stringify(pts)); }catch(e){}
+  return n;
+}
+
+/* sector status bar: day counter, curfew clock, threat level from the live grid */
+function sectorTick(){
+  $('sb-day').textContent = Math.max(1, Math.floor((Date.now() - new Date('2026-06-25').getTime()) / 864e5));
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const cEl = $('sb-curfew');
+  if (mins >= 21 * 60 || mins < 6 * 60){
+    cEl.innerHTML = '<b class="sev">CURFEW ACTIVE</b> · dawn 06:00';
+  } else {
+    const left = 21 * 60 - mins;
+    cEl.innerHTML = 'CURFEW IN <b>' + Math.floor(left / 60) + 'h ' + String(left % 60).padStart(2, '0') + 'm</b>';
+  }
+  let threats = 0;
+  try{
+    const pts = JSON.parse(localStorage.getItem('blindspot-v1')) || [];
+    threats = pts.filter(p => p.t === 'camera' || p.t === 'drone' || p.t === 'checkpoint').length;
+  }catch(e){}
+  const tEl = $('sb-threat');
+  tEl.textContent = threats < 6 ? 'GUARDED' : threats < 12 ? 'ELEVATED' : 'SEVERE';
+  tEl.className = threats < 6 ? '' : 'sev';
+}
+sectorTick();
+setInterval(sectorTick, 30000);
+
 UN.focus = (lat, lng) => {
   UN.show('blindspot');
   setTimeout(() => { if (bsMap){ bsMap.invalidateSize(); bsMap.setView([lat, lng], 17); } }, 250);
@@ -685,6 +747,19 @@ UN.register('deaddrop', $('dd'), function(){
   const stLink = $('st-link'), stCrypto = $('st-crypto'), stPeer = $('st-peer');
   const messagesEl = $('messages');
   $('my-callsign').textContent = myCallsign;
+
+  /* QR: scanning it opens DEADDROP on the other phone and dials this callsign */
+  try{
+    const dialUrl = location.origin + location.pathname + '#deaddrop?dial=' + myCallsign;
+    new QRCode($('qr'), { text: dialUrl, width: 132, height: 132,
+      colorDark: '#0d0618', colorLight: '#cfc3f5', correctLevel: QRCode.CorrectLevel.M });
+  }catch(e){}
+  /* arrived via a scanned QR? prefill and auto-dial once the broker accepts us */
+  const scanned = (location.hash.match(/dial=([A-Z0-9-]+)/i) || [])[1];
+  if (scanned){
+    $('remote-id').value = scanned.toUpperCase();
+    try{ history.replaceState(null, '', location.pathname + '#deaddrop'); }catch(e){}
+  }
 
   function setLink(state){
     stLink.className = state === 'secure' ? 'ok' : state === 'dialing' ? 'accent' : 'bad';
@@ -751,7 +826,10 @@ UN.register('deaddrop', $('dd'), function(){
           username: 'openrelayproject', credential: 'openrelayproject' },
       ] }
     });
-    peer.on('open', () => { b.disabled = false; b.textContent = 'CONNECT ▸'; });
+    peer.on('open', () => {
+      b.disabled = false; b.textContent = 'CONNECT ▸';
+      if (scanned && !conn){ toast('QR LINK — DIALING ' + scanned.toUpperCase()); dial(); }
+    });
     peer.on('disconnected', () => { try{ peer.reconnect(); }catch(e){} });
     peer.on('connection', c => acceptConnection(c));
     peer.on('error', err => {
@@ -844,6 +922,16 @@ UN.register('deaddrop', $('dd'), function(){
   async function onData(raw){
     let m; try{ m = typeof raw === 'string' ? JSON.parse(raw) : raw; }catch(e){ return; }
     if (m.t === 'burn') return burnEverything(false);
+    if (m.t === 'grid'){
+      const np = UN.mergePoints ? UN.mergePoints(m.points) : rawMergePoints(m.points);
+      const nq = Market.merge(m.posts);
+      sysLine('GRID RECEIVED — MERGED ' + np + ' MAP POINTS, ' + nq + ' POSTINGS');
+      if (!m.re && conn && conn.open){
+        conn.send(JSON.stringify({ t:'grid', re:true, ...gridSnapshot() }));
+        sysLine('GRID SENT BACK — BOTH DEVICES NOW CARRY THE SAME INTEL');
+      }
+      return;
+    }
     if (m.t !== 'msg') return;
     let text;
     if (m.enc){
@@ -869,6 +957,12 @@ UN.register('deaddrop', $('dd'), function(){
   $('remote-id').addEventListener('keydown', e => { if (e.key === 'Enter') dial(); });
   $('send-btn').addEventListener('click', send);
   $('msg-input').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  $('syncgrid').addEventListener('click', () => {
+    if (!conn || !conn.open) return;
+    const snap = gridSnapshot();
+    conn.send(JSON.stringify({ t:'grid', ...snap }));
+    sysLine('GRID TRANSMITTED — ' + snap.points.length + ' MAP POINTS, ' + snap.posts.length + ' POSTINGS, OVER THE ENCRYPTED LINK');
+  });
   $('burnall').addEventListener('click', () => {
     if (conn && conn.open) conn.send(JSON.stringify({ t:'burn' }));
     burnEverything(true);
@@ -948,9 +1042,11 @@ UN.register('vigil', $('vg'), function(){
       $('setup-err').textContent = 'ALL FIELDS REQUIRED.'; return;
     }
     const interval = parseInt($('interval').value, 10);
+    const duress = $('duress').value;
     state = {
       pkg: await seal(payload),
       masterHash: await sha256(master),
+      duressHash: duress ? await sha256(duress) : null,
       contact: {name, mail},
       interval,
       deadline: Date.now() + interval,
@@ -971,20 +1067,32 @@ UN.register('vigil', $('vg'), function(){
     $('streak').textContent = state.streak;
     $('last').textContent = new Date(state.last).toLocaleString();
   });
-  async function masterOk(){
-    const v = $('master-check').value;
-    if (await sha256(v) === state.masterHash) return true;
+  async function phraseCheck(){
+    const h = await sha256($('master-check').value);
+    if (h === state.masterHash) return 'master';
+    if (state.duressHash && h === state.duressHash) return 'duress';
     $('armed-err').textContent = 'MASTER PHRASE REJECTED.'; return false;
   }
   $('peek-btn').addEventListener('click', async () => {
-    if (!await masterOk()) return;
+    const ok = await phraseCheck();
+    if (!ok) return;
     $('armed-err').textContent = '';
     const p = $('peek');
-    p.textContent = await unseal(state.pkg);
+    /* duress phrase: show the decoy — an empty vault — and reveal nothing */
+    p.textContent = ok === 'duress' ? '[ VAULT EMPTY — NO PAYLOAD STORED ]' : await unseal(state.pkg);
     p.style.display = 'block';
   });
   $('disarm-btn').addEventListener('click', async () => {
-    if (!await masterOk()) return;
+    const ok = await phraseCheck();
+    if (!ok) return;
+    if (ok === 'duress'){
+      /* fake wipe: looks destroyed, but the switch stays silently armed —
+         if the real holder never checks in again, the release still fires */
+      ['master-check'].forEach(id => $(id).value = '');
+      $('peek').style.display = 'none';
+      show('setup');
+      return;
+    }
     wipe();
   });
   $('transmit-btn').addEventListener('click', () => {
@@ -1008,6 +1116,7 @@ UN.register('vigil', $('vg'), function(){
     $('c-mail').value = 'raven@example.org';
     $('interval').value = '30000';
     $('master').value = 'mason';
+    $('duress').value = 'decoy';
     $('arm-btn').click();
     toast('ARMED — 30s FUSE. DON\'T CHECK IN AND WATCH IT TRIP.');
   });
@@ -1017,7 +1126,7 @@ UN.register('vigil', $('vg'), function(){
     document.title = baseTitle;
     try{ localStorage.removeItem(KEY); }catch(e){}
     state = null;
-    ['payload','c-name','c-mail','master','master-check'].forEach(id => $(id).value='');
+    ['payload','c-name','c-mail','master','duress','master-check'].forEach(id => $(id).value='');
     $('peek').style.display='none';
     show('setup');
   }
@@ -1491,6 +1600,7 @@ UN.register('blindspot', $('bs'), function(){
     dead:       { icon:'○', color:'#6effa3', label:'DEAD ZONE',   radius:120, threat:false, note:'no coverage observed' },
   };
   let points = [], layers = {}, mode = 'nav';
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function save(){ try{ localStorage.setItem(KEY, JSON.stringify(points)); }catch(e){} }
   function load(){
     try{ const p = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(p)) return p; }catch(e){}
@@ -1559,7 +1669,7 @@ UN.register('blindspot', $('bs'), function(){
     const m = L.marker([p.lat, p.lng], { icon }).addTo(g);
     const el = document.createElement('div');
     el.innerHTML = '<div class="pp-type">' + T.icon + ' ' + T.label + '</div>' +
-      '<div class="pp-note">' + (p.note || T.note) + '</div>' +
+      '<div class="pp-note">' + esc(p.note || T.note) + '</div>' +
       (p.r ? '<div class="pp-note" style="color:var(--purple)">coverage ≈ ' + p.r + ' m</div>' : '');
     const del = document.createElement('span');
     del.className = 'pp-del'; del.textContent = '[ REMOVE ]';
@@ -1722,6 +1832,21 @@ UN.register('blindspot', $('bs'), function(){
     try { await navigator.clipboard.writeText(data); toast('GRID COPIED — ' + points.length + ' POINTS + ' + Market.posts.length + ' POSTINGS. PASS IT ON.'); }
     catch(e){ $('import-text').value = data; $('bs-overlay').style.display = 'flex'; toast('CLIPBOARD BLOCKED — COPY MANUALLY'); }
   });
+  /* shared merge: used by the IMPORT dialog and by DEADDROP's P2P grid sync */
+  function mergePoints(incoming){
+    let added = 0;
+    const have = new Set(points.map(p => p.id));
+    for (const p of (incoming || [])){
+      if (!p || !TYPES[p.t] || typeof p.lat !== 'number' || typeof p.lng !== 'number') continue;
+      if (have.has(p.id)) continue;
+      addPoint({ id: String(p.id || Math.random()), t: p.t, lat: p.lat, lng: p.lng,
+        r: Math.min(+p.r || 0, 2000), note: String(p.note || '').slice(0, 140) }, true);
+      added++;
+    }
+    if (added){ save(); refreshStats(); }
+    return added;
+  }
+  UN.mergePoints = mergePoints;
   $('import').addEventListener('click', () => { $('import-text').value=''; $('bs-overlay').style.display='flex'; });
   $('import-cancel').addEventListener('click', () => $('bs-overlay').style.display='none');
   $('import-go').addEventListener('click', () => {
@@ -1730,16 +1855,7 @@ UN.register('blindspot', $('bs'), function(){
       const incoming = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.points) ? raw.points : null);
       if (!incoming) throw 0;
       const nPosts = Array.isArray(raw) ? 0 : Market.merge(raw.posts);
-      let added = 0;
-      const have = new Set(points.map(p => p.id));
-      for (const p of incoming){
-        if (!p || !TYPES[p.t] || typeof p.lat !== 'number' || typeof p.lng !== 'number') continue;
-        if (have.has(p.id)) continue;
-        addPoint({ id: String(p.id || Math.random()), t: p.t, lat: p.lat, lng: p.lng,
-          r: Math.min(+p.r || 0, 2000), note: String(p.note || '').slice(0, 140) }, true);
-        added++;
-      }
-      save(); refreshStats();
+      const added = mergePoints(incoming);
       $('bs-overlay').style.display = 'none';
       toast('MERGED ' + added + ' POINTS, ' + nPosts + ' POSTINGS');
     } catch(e){ toast('BAD GRID DATA'); }
@@ -1888,7 +2004,6 @@ UN.register('blindspot', $('bs'), function(){
   save(); refreshStats();
 
   /* fictional survival world + peer-shared barter postings on the map */
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const worldLayer = L.layerGroup().addTo(map);
   for (const w of WORLD){
     const S = ROLE_STYLE[w.role];
@@ -1925,7 +2040,10 @@ UN.register('blindspot', $('bs'), function(){
 /* ======================================================================
    BOOT
 ====================================================================== */
-UN.show((location.hash || '#deaddrop').replace('#',''));
+UN.show((location.hash || '#deaddrop').replace('#','').replace(/\?.*$/,''));
+/* installable + offline: the suite opens even with the grid down */
+if ('serviceWorker' in navigator)
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 </script>
 </body>
 </html>
