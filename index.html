@@ -605,7 +605,21 @@ UN.register('deaddrop', $('dd'), function(){
 
   let peer = null, conn = null, remoteCallsign = '—';
   function initPeer(){
-    peer = new Peer(PREFIX + myCallsign);
+    const b = $('connect-btn');
+    b.disabled = true; b.textContent = 'REGISTERING WITH BROKER…';
+    peer = new Peer(PREFIX + myCallsign, {
+      config: { iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        // free TURN relay — lets the link form on networks that block direct P2P
+        { urls: 'turn:staticauth.openrelay.metered.ca:80',
+          username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
+          username: 'openrelayproject', credential: 'openrelayproject' },
+      ] }
+    });
+    peer.on('open', () => { b.disabled = false; b.textContent = 'CONNECT ▸'; });
+    peer.on('disconnected', () => { try{ peer.reconnect(); }catch(e){} });
     peer.on('connection', c => acceptConnection(c));
     peer.on('error', err => {
       if (err.type === 'peer-unavailable'){
@@ -667,7 +681,18 @@ UN.register('deaddrop', $('dd'), function(){
     if (conn){ c.close(); return; }
     conn = c;
     remoteCallsign = callsign;
+    // no answer within 20s → almost always a network blocking P2P, or a stale callsign
+    const dialTimer = setTimeout(() => {
+      if (conn === c && !c.open){
+        conn = null;
+        try{ c.close(); }catch(e){}
+        sysLineLobby('TIMED OUT. Likely causes: (1) their page was refreshed — callsigns change on every load, re-read theirs; (2) this network blocks P2P — put both devices on the same wifi or a phone hotspot.');
+        resetConnectBtn();
+      }
+    }, 20000);
     c.on('open', () => {
+      clearTimeout(dialTimer);
+      const note = $('lobby-note'); if (note) note.remove();
       stPeer.textContent = remoteCallsign;
       setLink('secure');
       $('lobby').style.display = 'none';
