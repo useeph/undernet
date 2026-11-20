@@ -593,11 +593,11 @@
         <label>YOUR CALLSIGN</label>
         <input id="pa-who" autocomplete="off">
         <label>TYPE</label>
-        <select id="pa-type"><option value="trade">TRADE</option><option value="transport">TRANSPORT</option></select>
-        <label>YOU OFFER</label>
-        <input id="pa-offer" placeholder="e.g. 20L filtered water / seat in Friday convoy" autocomplete="off">
-        <label>YOU WANT</label>
-        <input id="pa-want" placeholder="e.g. antibiotics, fuel, meals" autocomplete="off">
+        <select id="pa-type"><option value="trade">TRADE</option><option value="transport">TRANSPORT</option><option value="work">WORK / JOB</option></select>
+        <label>YOU OFFER — the goods, the ride, or the job to be done</label>
+        <input id="pa-offer" placeholder="e.g. 20L filtered water / JOB: haul supplies, 2h" autocomplete="off">
+        <label>YOU WANT — the price, or the pay</label>
+        <input id="pa-want" placeholder="e.g. antibiotics / pays 2 meals" autocomplete="off">
         <label>MEET AT</label>
         <select id="pa-loc"></select>
         <button id="pa-submit" style="margin-top:10px;width:100%">BROADCAST TO THE BOARD ▸</button>
@@ -691,6 +691,7 @@ const ROLE_STYLE = {
   transport: { icon:'➤', color:'#6effa3', label:'TRANSPORT' },
 };
 const worldById = id => WORLD.find(w => w.id === id) || WORLD[8];
+const postLabel = p => p.type === 'transport' ? 'TRANSPORT' : p.type === 'work' ? 'WORK' : 'TRADE';
 
 const SEED_POSTS = [
   { id:'sp1', who:'RAVEN-2214', type:'trade',     offer:'3 insulin doses',                             want:'9V batteries or a working radio', loc:'horizon' },
@@ -698,12 +699,16 @@ const SEED_POSTS = [
   { id:'sp3', who:'NOMAD-K2',   type:'transport', offer:'seat in convoy to Vienna metro, Friday dawn', want:'2 fuel cans',                     loc:'hub' },
   { id:'sp4', who:'CIPHER-9',   type:'trade',     offer:'solar charger, working',                      want:'12 cans of protein',              loc:'nguyen' },
   { id:'sp5', who:'ECHO-D4',    type:'transport', offer:'bike courier, anywhere on campus',            want:'meals',                           loc:'commons' },
+  { id:'sp6', who:'QUARTERMASTER', type:'work',   offer:'JOB: haul water from Merten to Southside, 2h shift', want:'pays 2 hot meals',           loc:'merten' },
+  { id:'sp7', who:'KRUG CLINIC',   type:'work',   offer:'JOB: night watch at the clinic, dusk to dawn',       want:'pays med priority for your household', loc:'krug' },
+  { id:'sp8', who:'HORIZON',       type:'work',   offer:'JOB: market setup crew at dawn, strong backs',       want:'pays 1 day dry rations',      loc:'horizon' },
 ];
 const Market = {
   posts: [],
   load(){
     try{ const p = JSON.parse(localStorage.getItem('undernet-market-v1')); if (Array.isArray(p) && p.length) this.posts = p; }catch(e){}
     if (!this.posts.length) this.posts = SEED_POSTS.slice();
+    else this.merge(SEED_POSTS); // returning devices still pick up newly seeded postings
     this.save();
   },
   save(){ try{ localStorage.setItem('undernet-market-v1', JSON.stringify(this.posts)); }catch(e){} },
@@ -719,7 +724,7 @@ const Market = {
     for (const p of (arr || [])){
       if (!p || !p.id || have.has(String(p.id)) || typeof p.offer !== 'string') continue;
       this.posts.push({ id:String(p.id), who:String(p.who || 'UNKNOWN').slice(0,24),
-        type: p.type === 'transport' ? 'transport' : 'trade',
+        type: p.type === 'transport' ? 'transport' : p.type === 'work' ? 'work' : 'trade',
         offer:String(p.offer).slice(0,90), want:String(p.want || '').slice(0,90),
         loc: WORLD.some(w => w.id === p.loc) ? p.loc : 'horizon' });
       n++;
@@ -1688,6 +1693,7 @@ UN.register('patriot', $('pa'), function(){
     ['water',     ['water','thirst','drink']],
     ['meds',      ['med','pharm','doctor','sick','hurt','injur','pill','insulin','antibiot','clinic','health','first aid','wound']],
     ['shelter',   ['shelter','sleep','stay','cot','rest','refuge','night','safe place']],
+    ['work',      ['job','work','hire','hiring','task','labor','labour','earn','shift','help wanted','gig']],
     ['transport', ['ride','transport','convoy','travel','courier','evacuat','bus','car','get out','move','leave']],
     ['trade',     ['trade','exchange','barter','swap','market','offer','who has','need','buy','sell','looking for']],
     ['rations',   ['ration','supply status','stock','days left','how long','running out','manage']],
@@ -1715,6 +1721,15 @@ UN.register('patriot', $('pa'), function(){
       return R('No direct match. The board holds ' + Market.posts.length + ' open postings — scroll down to browse, or broadcast your own offer.', byRole('market'));
     }
     switch (best){
+      case 'work': {
+        const jobs = Market.posts.filter(p => p.type === 'work');
+        return R(jobs.length ?
+          'OPEN JOBS ON THE BOARD:\n' + jobs.slice(0, 5).map(p =>
+            '⚒ ' + p.offer + ' — ' + p.want + ' · ' + p.who + ' @ ' + worldById(p.loc).name).join('\n') +
+          '\n\nLabor is the renewable currency — anyone can trade work. Post your own availability on the board.' :
+          'No open jobs right now. Post your availability on the board — labor is the one thing everyone can trade.',
+          jobs.slice(0, 5).map(p => worldById(p.loc)));
+      }
       case 'build': return R('Open the SHELTER BUILDER below the barter board: pick your conditions and materials, get a step-by-step build plan.\n\nRule of thumb while you scroll: insulation UNDER you matters more than cover above you — the ground steals heat faster than the air.', []);
       case 'family': return R('YOUR PEOPLE:\n' + Family.list.map(m =>
         '⚉ ' + m.name + ' — ' + m.role + ' [' + m.status + '] carries: ' + (m.carries || '—')).join('\n') +
@@ -1826,7 +1841,7 @@ UN.register('patriot', $('pa'), function(){
   function renderBoard(){
     $('pa-posts').innerHTML = Market.posts.map(p => {
       const w = worldById(p.loc);
-      return '<div class="post"><span class="ptype">[' + (p.type === 'transport' ? 'TRANSPORT' : 'TRADE') + ']</span> ' +
+      return '<div class="post"><span class="ptype">[' + postLabel(p) + ']</span> ' +
         '<span class="pwho">' + esc(p.who) + '</span> offers <span style="color:var(--accent)">' + esc(p.offer) + '</span>' +
         ' ⇄ wants ' + esc(p.want) + '<br><span class="ploc">meet @ ' + w.name + '</span></div>';
     }).join('');
@@ -2293,7 +2308,7 @@ UN.register('blindspot', $('bs'), function(){
         { icon: L.divIcon({ className:'', html:'<div class="mark" style="color:#f5e9a8;font-size:12px">⇄</div>',
           iconSize:[12,12], iconAnchor:[6,6] }) })
         .addTo(postsLayer)
-        .bindPopup('<div class="pp-type">⇄ ' + (p.type === 'transport' ? 'TRANSPORT' : 'TRADE') + ' — ' + esc(p.who) + '</div>' +
+        .bindPopup('<div class="pp-type">⇄ ' + postLabel(p) + ' — ' + esc(p.who) + '</div>' +
           '<div class="pp-note">offers: ' + esc(p.offer) + '<br>wants: ' + esc(p.want) + '</div>' +
           '<div class="pp-note" style="color:var(--purple)">meet @ ' + w.name + '</div>');
     });
