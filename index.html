@@ -111,6 +111,8 @@
     letter-spacing:4px;padding:10px 0 2px;text-shadow:0 0 16px var(--purple)}
   #vg .countdown.late{color:var(--warn);text-shadow:0 0 16px var(--warn)}
   #vg .cd-label{text-align:center;font-size:11px;color:var(--purple);letter-spacing:2px}
+  #vg .fusebar{height:8px;background:var(--panel2);border:1px solid var(--purple-dim);margin-top:4px}
+  #vg .fusebar i{display:block;height:100%;background:var(--ok);transition:width .3s}
   #vg .statusline{display:flex;justify-content:space-between;font-size:11px;color:var(--purple);
     margin-top:10px;flex-wrap:wrap;gap:6px}
   #vg .statusline b{color:var(--text);font-weight:normal}
@@ -284,8 +286,14 @@
     <div id="view-setup" class="view">
       <div class="box">
         <h2>&gt; ARM A VAULT</h2>
+        <button id="demo-btn" style="background:#2a2410;border-color:var(--accent);color:var(--accent);margin-top:0">⚡ 40-SECOND DEMO — ARM WITH SAMPLE DATA</button>
         <label>PAYLOAD — what gets released if you go dark</label>
-        <textarea id="payload" placeholder="evidence, coordinates, names, the password to everything…"></textarea>
+        <div style="display:flex;gap:6px">
+          <button class="ghost tpl" data-t="evidence" style="margin-top:0;font-size:11px;padding:6px 4px">EVIDENCE</button>
+          <button class="ghost tpl" data-t="location" style="margin-top:0;font-size:11px;padding:6px 4px">LAST LOCATION</button>
+          <button class="ghost tpl" data-t="passwords" style="margin-top:0;font-size:11px;padding:6px 4px">ACCESS KEYS</button>
+        </div>
+        <textarea id="payload" placeholder="evidence, coordinates, names, the password to everything…" style="margin-top:6px"></textarea>
         <label>TRUSTED CONTACT — name</label>
         <input id="c-name" placeholder="RAVEN-2214" autocomplete="off">
         <label>TRUSTED CONTACT — email</label>
@@ -310,6 +318,7 @@
       <div class="box">
         <div class="cd-label">RELEASE IN</div>
         <div class="countdown" id="cd">—</div>
+        <div class="fusebar"><i id="vg-fuse"></i></div>
         <button id="checkin-btn" style="background:#10301f;border-color:var(--ok);color:var(--ok)">✓ CHECK IN — I'M STILL HERE</button>
         <div class="statusline">
           <span>STATE: <b class="ok">ARMED ◉</b></span>
@@ -362,6 +371,9 @@
       <div class="meter"><div class="fill" id="meterfill"></div></div>
       <div class="meter-label"><span>INVISIBLE</span><span>FULLY PROFILED</span></div>
       <div class="flashline" id="sweepmsg">▚▚ OPEN THIS TAB TO BEGIN THE SWEEP ▚▚</div>
+      <div class="exposure-sub" id="pn-grade" style="margin-top:8px"></div>
+      <div class="hint" id="pn-delta" style="text-align:center"></div>
+      <button id="rescan-btn" class="ghost">↻ RE-RUN SWEEP — test a countermeasure, then measure again</button>
     </div>
 
     <div class="box">
@@ -385,6 +397,7 @@
 
     <div class="box">
       <h2>&gt; COUNTERMEASURES — fight back</h2>
+      <div id="fixes" style="margin-bottom:10px"></div>
       <div class="cm">
         ■ <b>Fingerprint:</b> use a browser that randomizes canvas/WebGL (Tor Browser, Brave, Firefox RFP)<br>
         ■ <b>Network identity:</b> VPN or Tor hides your IP; your fingerprint can still betray you — fix both<br>
@@ -749,6 +762,7 @@ UN.register('deaddrop', $('dd'), function(){
 UN.register('vigil', $('vg'), function(){
   const KEY = 'vigil-v1';
   let state = null, tick = null;
+  const baseTitle = document.title;
 
   const b64 = u8 => btoa(String.fromCharCode(...u8));
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -790,7 +804,12 @@ UN.register('vigil', $('vg'), function(){
       const left = state.deadline - Date.now();
       const cd = $('cd');
       cd.textContent = fmt(left);
-      cd.classList.toggle('late', left < Math.min(state.interval*0.2, 60000));
+      const late = left < Math.min(state.interval*0.2, 60000);
+      cd.classList.toggle('late', late);
+      const fuse = $('vg-fuse');
+      fuse.style.width = Math.max(0, 100 * left / state.interval) + '%';
+      fuse.style.background = late ? 'var(--warn)' : 'var(--ok)';
+      document.title = late && left > 0 ? '⚠ CHECK IN — VIGIL' : baseTitle;
       if (left <= 0) release();
     }, 250);
   }
@@ -855,9 +874,27 @@ UN.register('vigil', $('vg'), function(){
       '?subject=' + encodeURIComponent('[VIGIL RELEASE] Message from a silenced contact') +
       '&body=' + encodeURIComponent(body);
   });
+  /* quick-start: payload templates + one-tap demo */
+  const TPL = {
+    evidence: 'WHAT I KNOW:\n- \n\nWHERE THE PROOF IS:\n- \n\nWHO ELSE KNOWS:\n- ',
+    location: 'IF I GO DARK, LOOK FOR ME:\n- last known position: \n- planned route: \n- fallback meeting point: ',
+    passwords: 'MASTER PASSWORD: \nDEVICE PIN: \nENCRYPTED DRIVE KEY: \nWHO TO TRUST: '
+  };
+  document.querySelectorAll('#vg .tpl').forEach(b =>
+    b.addEventListener('click', () => { $('payload').value = TPL[b.dataset.t]; $('payload').focus(); }));
+  $('demo-btn').addEventListener('click', () => {
+    $('payload').value = 'DEMO PAYLOAD — the cache is under the third bench, north side of Mason Pond. Key taped inside the lamp post. Trust ECHO, no one else.';
+    $('c-name').value = 'RAVEN-2214';
+    $('c-mail').value = 'raven@example.org';
+    $('interval').value = '30000';
+    $('master').value = 'mason';
+    $('arm-btn').click();
+    toast('ARMED — 30s FUSE. DON\'T CHECK IN AND WATCH IT TRIP.');
+  });
   $('reset-btn').addEventListener('click', wipe);
   function wipe(){
     clearInterval(tick);
+    document.title = baseTitle;
     try{ localStorage.removeItem(KEY); }catch(e){}
     state = null;
     ['payload','c-name','c-mail','master','master-check'].forEach(id => $(id).value='');
@@ -915,8 +952,12 @@ UN.register('panopticon', $('pn'), function(){
     } catch(e){ return null; }
   }
   const lines = [];
+  let sweeping = false;
   function queue(k, v, so){ lines.push([k, v, so]); }
   async function buildSweep(){
+    if (sweeping) return;
+    sweeping = true;
+    dossier.innerHTML = ''; lines.length = 0; found = 0; total = 0;
     $('sweepmsg').textContent = '▚▚ SWEEPING YOUR DEVICE — NO PERMISSION REQUIRED ▚▚';
     const n = navigator, s = screen;
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
@@ -960,8 +1001,31 @@ UN.register('panopticon', $('pn'), function(){
       updateScore();
     }
     $('sweepmsg').textContent = '▚▚ SWEEP COMPLETE — ' + found + ' SIGNALS HARVESTED, 0 PERMISSIONS ASKED ▚▚';
+    /* privacy grade + scan-over-scan comparison, so fixes are measurable */
+    const grade = bits >= 40 ? ['F','fully identifiable'] : bits >= 33 ? ['D','unique among everyone on Earth'] :
+                  bits >= 25 ? ['C','easily tracked'] : bits >= 15 ? ['B','partially shielded'] : ['A','well hidden'];
+    $('pn-grade').innerHTML = 'PRIVACY GRADE: <span style="color:var(--warn);font-family:var(--display);font-size:28px">' +
+      grade[0] + '</span> — ' + grade[1];
+    let last = null;
+    try{ last = JSON.parse(localStorage.getItem('pn-last')); }catch(e){}
+    if (last && last.g) $('pn-delta').textContent = 'PREVIOUS SCAN: ' + last.g + ' (' + last.bits + ' bits) → NOW: ' +
+      grade[0] + ' (' + bits + ' bits)' + (bits < last.bits ? ' — IMPROVED ✓' : bits > last.bits ? ' — WORSE' : ' — unchanged');
+    try{ localStorage.setItem('pn-last', JSON.stringify({ g: grade[0], bits })); }catch(e){}
+    /* personalized fixes generated from THIS device's actual leaks */
+    const fx = [];
+    if (n.doNotTrack !== '1') fx.push('Do-Not-Track is off — turn it on in browser settings (weak alone, but free)');
+    if (gpu) fx.push('Your exact GPU model is exposed — Brave, or Firefox with resistFingerprinting, blanks it');
+    if (fp) fx.push('Your canvas fingerprint is readable — Brave randomizes it per site; CanvasBlocker works in Firefox');
+    if (n.deviceMemory) fx.push('Your RAM size is leaking (a Chromium-only API) — Firefox doesn\'t expose it at all');
+    if ((n.languages || []).length > 1) fx.push('Multiple language preferences narrow you down — trim the list to one');
+    if (n.getBattery) fx.push('Your battery level is readable — another Chromium-only leak; Firefox refuses it');
+    fx.push('Nuclear option: Tor Browser normalizes nearly every row above — everyone looks identical');
+    $('fixes').innerHTML = '<div class="hint" style="color:var(--accent);letter-spacing:1px">YOUR FIXES — generated from this device\'s leaks. apply one, hit RE-RUN SWEEP, watch the grade move:</div>' +
+      fx.map(x => '<div class="cm" style="margin-top:6px">☐ ' + x + '</div>').join('');
+    sweeping = false;
   }
   buildSweep();
+  $('rescan-btn').addEventListener('click', buildSweep);
 
   let mouse = 0, lastXY = null, clicks = 0, keys = 0, scrolled = 0, keyTimes = [], sigLocked = false;
   const t0 = Date.now();
