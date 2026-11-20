@@ -212,6 +212,11 @@
   .pp-act{display:inline-block;color:var(--accent);cursor:pointer;font-size:11px;
     letter-spacing:1px;text-decoration:underline;margin-right:10px}
   .mark{font-size:18px;line-height:1;text-shadow:0 0 6px #000;filter:drop-shadow(0 0 3px rgba(0,0,0,.9))}
+  /* pixel-art map sprites: chunky, game-like, drawn with box-shadow pixels */
+  .sprite{image-rendering:pixelated;filter:drop-shadow(1px 1px 0 rgba(0,0,0,.9))}
+  .sprite-badge{font-family:var(--display);font-size:13px;letter-spacing:1px;
+    background:rgba(13,6,24,.85);border:1px solid currentColor;padding:0 4px;
+    white-space:nowrap;transform:translateY(-2px);display:inline-block}
   .bldlabel{font-family:var(--mono);font-size:9px;letter-spacing:.5px;color:#b7a8ea;
     text-shadow:0 0 4px #000,0 0 4px #000,0 0 4px #000;white-space:nowrap;
     transform:translate(-50%,-50%);width:max-content;pointer-events:none}
@@ -246,6 +251,22 @@
     text-decoration:underline;margin-right:8px}
   #pa .post .pstat{color:var(--accent);border:1px solid var(--accent);font-size:9px;
     letter-spacing:1px;padding:1px 5px}
+  /* ---------- THE WALL ---------- */
+  #wl .card{border:1px solid var(--purple-dim);background:var(--panel);margin-bottom:14px}
+  #wl .chead{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--purple-dim)}
+  #wl .cwho{color:#fff;font-size:12px;letter-spacing:1px}
+  #wl .cwhen{color:var(--purple);font-size:10px;margin-left:auto}
+  #wl .cimg{height:150px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,var(--panel2),var(--bg));border-bottom:1px solid var(--purple-dim)}
+  #wl .ctext{padding:10px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  #wl .cfoot{display:flex;align-items:center;gap:12px;padding:0 10px 10px;font-size:11px}
+  #wl .clike{color:var(--purple);cursor:pointer;letter-spacing:1px}
+  #wl .clike.on{color:var(--warn)}
+  #wl .cflag{margin-left:auto;font-size:9px;letter-spacing:1px;padding:1px 6px;border:1px solid}
+  #wl .redacted{color:var(--purple-dim);background:var(--purple-dim)}
+  #bot-sprite{flex:none;transition:transform .3s}
+  #censor-box{border-color:var(--purple-dim);transition:border-color .4s}
+  #censor-box.hot{border-color:var(--warn)}
   /* ---------- FAMILY ---------- */
   #fm .fmcard{border:1px solid var(--purple-dim);background:var(--bg);padding:10px 12px;margin-bottom:8px;
     font-size:13px;line-height:1.6}
@@ -271,6 +292,7 @@
     <button class="tab" data-app="panopticon">◉ PANOPTICON</button>
     <button class="tab" data-app="ration">▤ RATION</button>
     <button class="tab" data-app="blindspot">⌖ BLINDSPOT</button>
+    <button class="tab" data-app="feed">▦ THE WALL</button>
     <button class="tab" data-app="family">⚉ FAMILY</button>
     <button class="tab" data-app="patriot">✦ LANTERN</button>
   </nav>
@@ -560,6 +582,38 @@
   </div>
 </section>
 
+<!-- ==================== THE WALL ==================== -->
+<section class="app" id="wl">
+  <div class="appline">THE WALL — <b>what the sector is saying</b> · and what CENSOR-7 thinks about it.</div>
+  <div class="pagewrap"><div class="pageinner">
+
+    <div class="box" id="censor-box">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div id="bot-sprite"></div>
+        <div style="flex:1">
+          <div class="pp-type" style="font-size:12px">CENSOR-7 · REGIME COMPLIANCE UNIT</div>
+          <div class="hint" id="bot-line" style="color:var(--text)">Awaiting transmission. Post something, citizen.</div>
+          <div class="meter" style="margin-top:6px"><div class="fill" id="bot-meter" style="width:0%"></div></div>
+          <div class="meter-label"><span>COMPLIANT</span><span id="bot-verdict">—</span><span>SEDITIOUS</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="box">
+      <h2>&gt; NEW TRANSMISSION</h2>
+      <textarea id="wl-text" placeholder="say something to the sector…" style="min-height:72px"></textarea>
+      <div class="hint" id="wl-live" style="margin-top:6px">CENSOR-7 scans as you type.</div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="wl-post" style="flex:1">POST</button>
+        <button id="wl-anon" class="ghost" style="flex:1" title="strip your callsign before posting">POST AS GHOST</button>
+      </div>
+    </div>
+
+    <div id="wl-feed"></div>
+
+  </div></div>
+</section>
+
 <!-- ==================== FAMILY ==================== -->
 <section class="app" id="fm">
   <div class="appline">FAMILY — <b>who you're surviving with</b> · the roster travels with you, device to device.</div>
@@ -721,6 +775,43 @@ const ROLE_STYLE = {
   transport: { icon:'➤', color:'#6effa3', label:'TRANSPORT' },
 };
 const worldById = id => WORLD.find(w => w.id === id) || WORLD[8];
+
+/* ---- pixel-art sprite engine: 8x8 grids rendered as inline SVG ----
+   '.' transparent · 'X' main · 'o' shade · 'w' highlight   */
+const PX = {
+  food:      ['.oXXXXo.','.X....X.','.oXXXXo.','.XwwwwX.','.XwwwwX.','.XwwwwX.','.oXXXXo.','........'],
+  shelter:   ['...XX...','..XXXX..','.XXXXXX.','XXXXXXXX','.XwwwwX.','.XwwwwX.','.XwoowX.','.XXXXXX.'],
+  meds:      ['..XXXX..','..XXXX..','XXXXXXXX','XXwwwwXX','XXwwwwXX','XXXXXXXX','..XXXX..','..XXXX..'],
+  market:    ['XoXoXoXo','XoXoXoXo','.XXXXXX.','.X....X.','.XwwwwX.','.XwwwwX.','.XwwwwX.','.XXXXXX.'],
+  water:     ['...XX...','...XX...','..XXXX..','.XXXXXX.','XXXwwXXX','XXXwwXXX','.XXXXXX.','..XXXX..'],
+  transport: ['........','.XXXXX..','.XwwwXX.','XXXXXXXX','XXXXXXXX','.o....o.','ooo..ooo','.o....o.'],
+  person:    ['..XXXX..','.XwwwwX.','..XXXX..','.oXXXXo.','XoXXXXoX','.oXXXXo.','..X..X..','..X..X..'],
+  alert:     ['...XX...','...XX...','..XXXX..','..XwwX..','.XXwwXX.','.XXXXXX.','XXX..XXX','XXXXXXXX'],
+  bot:       ['o.XXXX.o','.XXXXXX.','.XwXXwX.','.XXXXXX.','oXXXXXXo','X.XXXX.X','..X..X..','..o..o..'],
+  megaphone: ['......oX','.....oXX','..oXXXXX','.XXXXXXX','.XXXXXXX','..oXXXXX','.....oXX','......oX'],
+  eye:       ['........','..XXXX..','.XwwwwX.','XwwooWwX','XwwooWwX','.XwwwwX.','..XXXX..','........'],
+  flame:     ['...X....','..XwX...','..XwXX..','.XXwwX..','.XwwwXX.','XXwwwwX.','.XXwwXX.','..XXXX..'],
+};
+function pixelSprite(key, main, shade, light, scale){
+  const rows = PX[key];
+  if (!rows) return '';
+  const s = scale || 3, C = { X: main, o: shade || main, w: light || '#ffffff' };
+  let r = '';
+  rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++){
+      const c = C[row[x]];
+      if (c) r += '<rect x="' + (x*s) + '" y="' + (y*s) + '" width="' + s + '" height="' + s + '" fill="' + c + '"/>';
+    }
+  });
+  const d = 8 * s;
+  return '<svg class="sprite" width="' + d + '" height="' + d + '" viewBox="0 0 ' + d + ' ' + d + '">' + r + '</svg>';
+}
+/* darken a hex colour for the sprite's shade pixels */
+function shadeOf(hex){
+  const n = parseInt(hex.slice(1), 16);
+  const f = v => Math.max(0, Math.round(v * 0.55)).toString(16).padStart(2, '0');
+  return '#' + f((n >> 16) & 255) + f((n >> 8) & 255) + f(n & 255);
+}
 const postLabel = p => p.type === 'transport' ? 'TRANSPORT' : p.type === 'work' ? 'WORK' : 'TRADE';
 
 const SEED_POSTS = [
@@ -793,6 +884,82 @@ const Market = {
   }
 };
 Market.load();
+/* ---- THE WALL: the sector's public feed, and the regime's censor bot ----
+   CENSOR-7 is a keyword matcher. That is the joke, and also the point:
+   most automated censorship really is this crude. It flags innocent posts
+   and misses real dissent, and the app shows you both.                      */
+const FORBIDDEN = {
+  // word : weight the regime assigns it
+  resist:18, resistance:20, rebel:18, uprising:22, revolt:20, riot:16,
+  freedom:16, free:8, liberty:16, rights:12, vote:12, truth:14, lie:12, lies:14,
+  underground:16, hide:10, hidden:8, smuggle:16, contraband:16,
+  curfew:12, checkpoint:12, camera:10, drone:10, watched:12, surveillance:16,
+  ration:8, hungry:10, starving:14, shortage:12, hoard:10,
+  gather:12, meeting:12, assemble:14, organize:18, union:14, strike:16,
+  regime:20, sector: 4, control:10, obey:6, comply:6, propaganda:18,
+  escape:14, fence:10, wall:6, border:10, convoy:8,
+  remember:10, forgotten:12, disappeared:20, missing:14, silenced:18,
+};
+const TIERS = [
+  { max:24,  name:'COMPLIANT',          color:'#6effa3', line:'Model citizen. Carry on.' },
+  { max:49,  name:'MONITORED',          color:'#f5e9a8', line:'Noted. Your file has been updated.' },
+  { max:74,  name:'SUSPECT',            color:'#ff9a5c', line:'This transmission has been forwarded for review.' },
+  { max:101, name:'ENEMY OF THE STATE', color:'#ff5c7a', line:'Remain where you are. A unit has been dispatched.' },
+];
+function censorScan(text){
+  const t = ' ' + String(text).toLowerCase().replace(/[^a-z0-9\s]/g, ' ') + ' ';
+  let score = 0;
+  const hits = [];
+  for (const w in FORBIDDEN){
+    if (t.includes(' ' + w + ' ')){ score += FORBIDDEN[w]; hits.push(w); }
+  }
+  if (/[A-Z]{5,}/.test(String(text))) score += 6;      // SHOUTING reads as agitation
+  if (String(text).length > 180) score += 4;           // long transmissions are suspicious
+  score = Math.max(0, Math.min(100, score));
+  const tier = TIERS.find(x => score < x.max) || TIERS[3];
+  return { score, tier, hits };
+}
+const Wall = {
+  posts: [],
+  load(){
+    try{ const p = JSON.parse(localStorage.getItem('undernet-wall-v1')); if (Array.isArray(p) && p.length) this.posts = p; }catch(e){}
+    const SEED = [
+      { id:'w1', who:'ONYX-77',  text:'Water point ran dry by noon again. Third day. Nobody will say why.',  ts:Date.now()-5400e3, likes:14 },
+      { id:'w2', who:'BRICK',    text:'Fixed six radios today at the workshop. Bring me wire and I will fix yours.', ts:Date.now()-3600e3, likes:31 },
+      { id:'w3', who:'ANONYMOUS',text:'They took the Vasquez family at curfew. We should gather and ask where.', ts:Date.now()-1800e3, likes:88 },
+      { id:'w4', who:'ASH',      text:'Clinic has antibiotics again. Med-flag households first, then everyone.', ts:Date.now()-900e3,  likes:52 },
+    ];
+    const have = new Set(this.posts.map(p => p.id));
+    const missing = SEED.filter(s => !have.has(s.id));
+    if (missing.length) this.posts = missing.concat(this.posts);
+    this.posts.forEach(p => { if (!p.scan) p.scan = censorScan(p.text); });
+    this.save();
+  },
+  save(){ try{ localStorage.setItem('undernet-wall-v1', JSON.stringify(this.posts)); }catch(e){} },
+  add(p){
+    p.id = Date.now() + '-' + Math.random().toString(36).slice(2,6);
+    p.ts = Date.now(); p.likes = 0; p.scan = censorScan(p.text);
+    this.posts.unshift(p); this.save();
+    if (UN.renderWall) UN.renderWall();
+    UN.live({ wallpost: p });
+    return p;
+  },
+  merge(arr){
+    const have = new Set(this.posts.map(p => p.id));
+    let n = 0;
+    for (const p of (arr || [])){
+      if (!p || !p.id || have.has(String(p.id)) || typeof p.text !== 'string') continue;
+      const clean = { id:String(p.id), who:String(p.who || 'ANONYMOUS').slice(0,24),
+        text:String(p.text).slice(0,300), ts:+p.ts || Date.now(), likes: Math.max(0, +p.likes || 0) };
+      clean.scan = censorScan(clean.text);
+      this.posts.push(clean); n++;
+    }
+    if (n){ this.posts.sort((a,b) => b.ts - a.ts); this.save(); if (UN.renderWall) UN.renderWall(); }
+    return n;
+  }
+};
+Wall.load();
+
 /* the family roster: teammates and the resources they carry */
 const Family = {
   list: [],
@@ -841,7 +1008,7 @@ UN.sos = (lat, lng, who) => {
 function gridSnapshot(){
   let pts = [];
   try{ pts = JSON.parse(localStorage.getItem('blindspot-v1')) || []; }catch(e){}
-  return { points: pts, posts: Market.posts, family: Family.list };
+  return { points: pts, posts: Market.posts, family: Family.list, wall: Wall.posts };
 }
 function rawMergePoints(arr){
   const OK = { camera:1, checkpoint:1, drone:1, safe:1, dead:1 };
@@ -1119,13 +1286,15 @@ UN.register('deaddrop', $('dd'), function(){
         if (n) toast('⌖ LIVE — ' + remoteCallsign + ' MARKED THE MAP');
       }
       if (m.post && Market.merge([m.post])) toast('⇄ LIVE — NEW POSTING FROM ' + remoteCallsign);
+      if (m.wallpost && Wall.merge([m.wallpost])) toast('▦ LIVE — ' + remoteCallsign + ' POSTED TO THE WALL');
       return;
     }
     if (m.t === 'grid'){
       const np = UN.mergePoints ? UN.mergePoints(m.points) : rawMergePoints(m.points);
       const nq = Market.merge(m.posts);
       const nf = Family.merge(m.family);
-      sysLine('GRID RECEIVED — MERGED ' + np + ' MAP POINTS, ' + nq + ' POSTINGS, ' + nf + ' FAMILY MEMBERS');
+      const nw = Wall.merge(m.wall);
+      sysLine('GRID RECEIVED — MERGED ' + np + ' MAP POINTS, ' + nq + ' POSTINGS, ' + nf + ' FAMILY, ' + nw + ' WALL POSTS');
       if (!m.re && conn && conn.open){
         conn.send(JSON.stringify({ t:'grid', re:true, ...gridSnapshot() }));
         sysLine('GRID SENT BACK — BOTH DEVICES NOW CARRY THE SAME INTEL');
@@ -1724,6 +1893,104 @@ UN.register('ration', $('rt'), function(){
    MODULE: BLINDSPOT
 ====================================================================== */
 /* ======================================================================
+   MODULE: THE WALL — the sector's feed, watched by CENSOR-7
+====================================================================== */
+UN.register('feed', $('wl'), function(){
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const liked = (() => { try{ return new Set(JSON.parse(localStorage.getItem('undernet-wall-likes')) || []); }catch(e){ return new Set(); } })();
+  const saveLikes = () => { try{ localStorage.setItem('undernet-wall-likes', JSON.stringify([...liked])); }catch(e){} };
+
+  function postEmoji(p){
+    const s = p.text.toLowerCase();
+    if (/water|drink|thirst/.test(s)) return 'water';
+    if (/food|meal|eat|hungry|ration/.test(s)) return 'food';
+    if (/med|clinic|antibiot|insulin|sick|hurt/.test(s)) return 'meds';
+    if (/radio|fix|repair|tool|workshop/.test(s)) return 'market';
+    if (/shelter|cot|sleep|home|family/.test(s)) return 'shelter';
+    if (/convoy|ride|courier|transport/.test(s)) return 'transport';
+    if (/gather|organize|meet|assemble|rise|resist/.test(s)) return 'megaphone';
+    if (/watch|camera|drone|surveil|seen/.test(s)) return 'eye';
+    if (/took|missing|disappear|silenc/.test(s)) return 'flame';
+    return 'person';
+  }
+  function botFace(scan){
+    const t = scan.tier;
+    $('bot-sprite').innerHTML = pixelSprite('bot', t.color, shadeOf(t.color), '#ffffff', 5);
+    $('bot-sprite').style.transform = 'scale(' + (1 + scan.score / 160) + ')';
+    $('bot-meter').style.width = scan.score + '%';
+    $('bot-meter').style.background = 'linear-gradient(90deg,var(--purple),' + t.color + ')';
+    $('bot-verdict').textContent = t.name + ' · ' + scan.score;
+    $('bot-verdict').style.color = t.color;
+    $('censor-box').classList.toggle('hot', scan.score >= 50);
+    return t;
+  }
+  function renderWall(){
+    $('wl-feed').innerHTML = Wall.posts.map(p => {
+      const t = p.scan.tier;
+      const ago = Math.max(1, Math.round((Date.now() - p.ts) / 60000));
+      const when = ago < 60 ? ago + 'm ago' : Math.round(ago / 60) + 'h ago';
+      return '<div class="card" data-id="' + esc(p.id) + '">' +
+        '<div class="chead">' + pixelSprite('person', '#7c5cff', '#2a1d4d', '#cfc3f5', 2) +
+          '<span class="cwho">' + esc(p.who) + '</span><span class="cwhen">' + when + '</span></div>' +
+        '<div class="cimg">' + pixelSprite(postEmoji(p), t.color, shadeOf(t.color), '#ffffff', 9) + '</div>' +
+        '<div class="ctext">' + esc(p.text) + '</div>' +
+        '<div class="cfoot">' +
+          '<span class="clike' + (liked.has(p.id) ? ' on' : '') + '">♥ ' + p.likes + '</span>' +
+          '<span class="cflag" style="color:' + t.color + ';border-color:' + t.color + '">' +
+            t.name + ' · ' + p.scan.score + '</span>' +
+        '</div></div>';
+    }).join('') || '<div class="hint">the wall is empty. say something.</div>';
+    $('wl-feed').querySelectorAll('.clike').forEach(a => a.addEventListener('click', () => {
+      const id = a.closest('.card').dataset.id;
+      const p = Wall.posts.find(x => x.id === id);
+      if (!p) return;
+      if (liked.has(id)){ liked.delete(id); p.likes = Math.max(0, p.likes - 1); }
+      else { liked.add(id); p.likes++; }
+      saveLikes(); Wall.save(); renderWall();
+    }));
+  }
+  UN.renderWall = renderWall;
+
+  /* live scan while typing — the bot reacts before you even post */
+  let typeTimer = null;
+  $('wl-text').addEventListener('input', () => {
+    clearTimeout(typeTimer);
+    typeTimer = setTimeout(() => {
+      const v = $('wl-text').value.trim();
+      if (!v){
+        $('wl-live').textContent = 'CENSOR-7 scans as you type.';
+        botFace({ score:0, tier:TIERS[0], hits:[] });
+        $('bot-line').textContent = 'Awaiting transmission. Post something, citizen.';
+        return;
+      }
+      const scan = censorScan(v);
+      const t = botFace(scan);
+      $('bot-line').textContent = t.line;
+      $('wl-live').innerHTML = scan.hits.length
+        ? 'FLAGGED TERMS: <span style="color:' + t.color + '">' + scan.hits.slice(0, 8).join(', ') + '</span>'
+        : 'No flagged terms. CENSOR-7 only reads words — not meaning.';
+    }, 160);
+  });
+  function publish(anon){
+    const text = $('wl-text').value.trim();
+    if (!text) return toast('NOTHING TO TRANSMIT');
+    const scan = censorScan(text);
+    Wall.add({ who: anon ? 'ANONYMOUS' : (UN.myCallsign || 'CITIZEN'), text: text.slice(0, 300) });
+    $('wl-text').value = '';
+    $('wl-live').textContent = 'CENSOR-7 scans as you type.';
+    toast(scan.score >= 50
+      ? '⚠ POSTED — FLAGGED ' + scan.tier.name + '. POST ANYWAY. THAT IS THE POINT.'
+      : 'POSTED TO THE WALL');
+    renderWall();
+  }
+  $('wl-post').addEventListener('click', () => publish(false));
+  $('wl-anon').addEventListener('click', () => publish(true));
+
+  botFace({ score:0, tier:TIERS[0], hits:[] });
+  renderWall();
+});
+
+/* ======================================================================
    MODULE: FAMILY — the people you survive with, and what they carry
 ====================================================================== */
 UN.register('family', $('fm'), function(){
@@ -2252,7 +2519,7 @@ UN.register('blindspot', $('bs'), function(){
     }, () => toast('POSITION DENIED — good instinct.'));
   });
   $('export').addEventListener('click', async () => {
-    const data = JSON.stringify({ v:3, points, posts: Market.posts, family: Family.list });
+    const data = JSON.stringify({ v:4, points, posts: Market.posts, family: Family.list, wall: Wall.posts });
     try { await navigator.clipboard.writeText(data); toast('GRID COPIED — ' + points.length + ' POINTS + ' + Market.posts.length + ' POSTINGS + FAMILY. PASS IT ON.'); }
     catch(e){ $('import-text').value = data; $('bs-overlay').style.display = 'flex'; toast('CLIPBOARD BLOCKED — COPY MANUALLY'); }
   });
@@ -2280,9 +2547,10 @@ UN.register('blindspot', $('bs'), function(){
       if (!incoming) throw 0;
       const nPosts = Array.isArray(raw) ? 0 : Market.merge(raw.posts);
       const nFam = Array.isArray(raw) ? 0 : Family.merge(raw.family);
+      const nWall = Array.isArray(raw) ? 0 : Wall.merge(raw.wall);
       const added = mergePoints(incoming);
       $('bs-overlay').style.display = 'none';
-      toast('MERGED ' + added + ' POINTS, ' + nPosts + ' POSTINGS, ' + nFam + ' FAMILY');
+      toast('MERGED ' + added + ' POINTS, ' + nPosts + ' POSTINGS, ' + nFam + ' FAMILY, ' + nWall + ' WALL');
     } catch(e){ toast('BAD GRID DATA'); }
   });
   $('wipe').addEventListener('click', () => {
@@ -2433,8 +2701,8 @@ UN.register('blindspot', $('bs'), function(){
   for (const w of WORLD){
     const S = ROLE_STYLE[w.role];
     L.marker([w.lat, w.lng], { icon: L.divIcon({ className:'',
-      html:'<div class="mark" style="color:' + S.color + ';font-size:16px">' + S.icon + '</div>',
-      iconSize:[16,16], iconAnchor:[8,8] }) })
+      html: pixelSprite(w.role, S.color, shadeOf(S.color), '#ffffff', 3),
+      iconSize:[24,24], iconAnchor:[12,12] }) })
       .addTo(worldLayer)
       .bindPopup('<div class="pp-type" style="color:' + S.color + '">' + S.icon + ' ' + w.name + '</div>' +
         '<div class="pp-note">' + S.label + ' · ' + w.note + '</div>' +
@@ -2446,9 +2714,10 @@ UN.register('blindspot', $('bs'), function(){
     Market.posts.forEach((p, i) => {
       const w = worldById(p.loc);
       const ang = i * 2.4;
+      const pc = p.status === 'CLAIMED' ? '#4a3580' : p.type === 'work' ? '#6effa3' : p.type === 'transport' ? '#7c5cff' : '#f5e9a8';
       L.marker([w.lat + 0.00035 * Math.sin(ang), w.lng + 0.00045 * Math.cos(ang)],
-        { icon: L.divIcon({ className:'', html:'<div class="mark" style="color:#f5e9a8;font-size:12px">⇄</div>',
-          iconSize:[12,12], iconAnchor:[6,6] }) })
+        { icon: L.divIcon({ className:'', html: pixelSprite('person', pc, shadeOf(pc), '#ffffff', 2),
+          iconSize:[16,16], iconAnchor:[8,8] }) })
         .addTo(postsLayer)
         .bindPopup('<div class="pp-type">⇄ ' + postLabel(p) + ' — ' + esc(p.who) + '</div>' +
           '<div class="pp-note">offers: ' + esc(p.offer) + '<br>wants: ' + esc(p.want) + '</div>' +
@@ -2460,8 +2729,9 @@ UN.register('blindspot', $('bs'), function(){
 
   /* SOS beacons: flashing distress markers relayed over DEADDROP */
   UN.sosMark = (lat, lng, who) => {
-    L.marker([lat, lng], { icon: L.divIcon({ className:'', html:'<div class="mark sosmark">⚠</div>',
-      iconSize:[22,22], iconAnchor:[11,11] }) })
+    L.marker([lat, lng], { icon: L.divIcon({ className:'',
+      html:'<div class="sosmark">' + pixelSprite('alert', '#ff5c7a', '#7a1f30', '#ffffff', 4) + '</div>',
+      iconSize:[32,32], iconAnchor:[16,16] }) })
       .addTo(map)
       .bindPopup('<div class="pp-type" style="color:var(--warn)">⚠ SOS — ' + esc(who) + '</div>' +
         '<div class="pp-note">' + new Date().toLocaleTimeString() + ' · distress signal received over DEADDROP</div>');
