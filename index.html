@@ -231,6 +231,18 @@
   #pa .post .ptype{color:var(--accent);font-size:10px;letter-spacing:1px}
   #pa .post .pwho{color:#fff}
   #pa .post .ploc{color:var(--purple);font-size:11px}
+  /* ---------- FAMILY ---------- */
+  #fm .fmcard{border:1px solid var(--purple-dim);background:var(--bg);padding:10px 12px;margin-bottom:8px;
+    font-size:13px;line-height:1.6}
+  #fm .fmname{color:#fff;font-family:var(--display);font-size:20px;letter-spacing:2px}
+  #fm .fmrole{color:var(--purple);font-size:10px;letter-spacing:1px;margin-left:6px}
+  #fm .fmstatus{font-size:10px;letter-spacing:1px;border:1px solid;padding:1px 6px;margin-left:6px}
+  #fm .fmcarries{font-size:11px;color:var(--text)}
+  #fm .fmact{color:var(--purple);cursor:pointer;font-size:10px;letter-spacing:1px;
+    text-decoration:underline;margin-right:10px}
+  #fm .fmact:hover{color:var(--accent)}
+  /* SOS marker on the map */
+  .sosmark{font-size:22px;color:#ff5c7a;animation:blink .7s steps(2) infinite}
 </style>
 </head>
 <body>
@@ -244,6 +256,7 @@
     <button class="tab" data-app="panopticon">◉ PANOPTICON</button>
     <button class="tab" data-app="ration">▤ RATION</button>
     <button class="tab" data-app="blindspot">⌖ BLINDSPOT</button>
+    <button class="tab" data-app="family">⚉ FAMILY</button>
     <button class="tab" data-app="patriot">✦ LANTERN</button>
   </nav>
   <div id="sectorbar">SECTOR 7 · DAY <b id="sb-day">—</b> · POP <b>403</b> · <span id="sb-curfew">CURFEW —</span> · THREAT <b id="sb-threat">—</b></div>
@@ -297,6 +310,7 @@
       <input type="text" id="msg-input" placeholder="transmit…" autocomplete="off">
       <button id="send-btn">TX</button>
       <button id="syncgrid" title="send your map + barter board over this encrypted link" style="padding:0 10px;font-size:11px">⇅ SYNC</button>
+      <button id="sos-btn" class="danger" title="broadcast distress + your position" style="padding:0 10px;font-size:11px">SOS</button>
       <button id="burnall" class="danger" title="wipe both ends">BURN</button>
     </div>
   </div>
@@ -516,6 +530,43 @@
   </div>
 </section>
 
+<!-- ==================== FAMILY ==================== -->
+<section class="app" id="fm">
+  <div class="appline">FAMILY — <b>who you're surviving with</b> · the roster travels with you, device to device.</div>
+  <div class="pagewrap"><div class="pageinner">
+
+    <div class="box">
+      <h2>&gt; YOUR PEOPLE</h2>
+      <div id="fm-list"></div>
+      <button id="fm-add" class="ghost" style="margin-top:6px">+ ADD MEMBER</button>
+      <div id="fm-form" style="display:none">
+        <label>NAME / CALLSIGN</label>
+        <input id="fm-name" autocomplete="off">
+        <label>ROLE</label>
+        <select id="fm-role">
+          <option>SCOUT</option><option>MEDIC</option><option>ENGINEER</option>
+          <option>RUNNER</option><option>QUARTERMASTER</option><option>LOOKOUT</option>
+        </select>
+        <label>STATUS</label>
+        <select id="fm-status"><option>OK</option><option>INJURED</option><option>OFF-GRID</option></select>
+        <label>CARRIES — the resources this member holds</label>
+        <input id="fm-carries" placeholder="e.g. first aid kit, 10L water, radio" autocomplete="off">
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button id="fm-save" style="flex:1">SAVE</button>
+          <button id="fm-cancel" class="ghost" style="flex:1">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="box">
+      <h2>&gt; POOLED INVENTORY</h2>
+      <div class="hint" id="fm-inv" style="color:var(--text)">—</div>
+      <div class="hint" style="margin-top:8px">LANTERN can search this: ask it "who carries water". The roster syncs over DEADDROP's ⇅ and travels in grid EXPORT/IMPORT, so the whole cell always knows who holds what.</div>
+    </div>
+
+  </div></div>
+</section>
+
 <!-- ==================== LANTERN ==================== -->
 <section class="app" id="pa">
   <div class="appline">LANTERN — <b>on-device survival assistant</b> · no cloud. no logs. it dies with your battery.</div>
@@ -526,6 +577,7 @@
       <div id="pa-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"></div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <input type="text" id="pa-input" placeholder="ask… e.g. who has insulin" autocomplete="off" style="flex:1;width:auto">
+        <button id="pa-mic" class="ghost" title="speak to LANTERN" style="width:auto;margin:0;padding:0 12px">🎙</button>
         <button id="pa-send" style="width:auto;margin:0">ASK</button>
       </div>
       <div class="hint" style="margin-top:8px">This is the OFFLINE EDITION — a rule engine that runs with zero connectivity.
@@ -551,6 +603,27 @@
         <button id="pa-submit" style="margin-top:10px;width:100%">BROADCAST TO THE BOARD ▸</button>
       </div>
       <div class="hint" style="margin-top:8px">Postings travel peer-to-peer: EXPORT / IMPORT on BLINDSPOT carries the board between devices. All locations are a fictional overlay on campus buildings — worldbuilding, not real inventory.</div>
+    </div>
+
+    <div class="box">
+      <h2>&gt; FIELD KIT — SHELTER BUILDER</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label style="margin-top:0">CONDITIONS</label>
+          <select id="sb-weather">
+            <option value="clear">CLEAR</option><option value="rain">RAIN</option>
+            <option value="cold">COLD NIGHT</option><option value="wind">HIGH WIND</option>
+          </select></div>
+        <div><label style="margin-top:0">MATERIALS ON HAND</label>
+          <select id="sb-mat">
+            <option value="both">TARP + BRANCHES</option><option value="tarp">TARP + CORD ONLY</option>
+            <option value="branches">BRANCHES + DEBRIS ONLY</option><option value="none">NOTHING — URBAN SALVAGE</option>
+          </select></div>
+      </div>
+      <button id="sb-go" style="margin-top:10px;width:100%">GENERATE BUILD PLAN ▸</button>
+      <div id="sb-out" style="display:none;margin-top:10px">
+        <div class="pp-type" id="sb-title" style="font-size:13px"></div>
+        <div class="cm" id="sb-steps" style="margin-top:6px"></div>
+      </div>
     </div>
 
   </div></div>
@@ -656,11 +729,52 @@ const Market = {
   }
 };
 Market.load();
+/* the family roster: teammates and the resources they carry */
+const Family = {
+  list: [],
+  load(){
+    try{ const l = JSON.parse(localStorage.getItem('undernet-family-v1')); if (Array.isArray(l) && l.length) this.list = l; }catch(e){}
+    if (!this.list.length) this.list = [
+      { id:'f1', name:'ASH',   role:'MEDIC',    status:'OK',       carries:'first aid kit, antibiotics, splints' },
+      { id:'f2', name:'BRICK', role:'ENGINEER', status:'OK',       carries:'radio, 9V batteries, multitool' },
+      { id:'f3', name:'WREN',  role:'RUNNER',   status:'OFF-GRID', carries:'10L water, campus maps, flashlight' },
+    ];
+    this.save();
+  },
+  save(){ try{ localStorage.setItem('undernet-family-v1', JSON.stringify(this.list)); }catch(e){} },
+  upsert(m){
+    const i = this.list.findIndex(x => x.id === m.id);
+    if (i >= 0) this.list[i] = m; else this.list.push(m);
+    this.save();
+    if (UN.renderFamily) UN.renderFamily();
+  },
+  remove(id){ this.list = this.list.filter(x => x.id !== id); this.save(); if (UN.renderFamily) UN.renderFamily(); },
+  merge(arr){
+    const have = new Set(this.list.map(x => x.id));
+    let n = 0;
+    for (const m of (arr || [])){
+      if (!m || !m.id || have.has(String(m.id)) || typeof m.name !== 'string') continue;
+      this.list.push({ id:String(m.id), name:String(m.name).slice(0,24), role:String(m.role || 'SCOUT').slice(0,16),
+        status:String(m.status || 'OK').slice(0,10), carries:String(m.carries || '').slice(0,120) });
+      n++;
+    }
+    if (n){ this.save(); if (UN.renderFamily) UN.renderFamily(); }
+    return n;
+  }
+};
+Family.load();
+/* SOS relay: a distress call lands on the map even if BLINDSPOT isn't open yet */
+UN.pendingSOS = [];
+UN.sos = (lat, lng, who) => {
+  if (UN.sosMark) UN.sosMark(lat, lng, who);
+  else UN.pendingSOS.push([lat, lng, who]);
+  toast('⚠ SOS RECEIVED FROM ' + who + ' — POSITION ON BLINDSPOT');
+};
 /* grid snapshot + raw merge: used by DEADDROP's P2P sync even when the map tab was never opened */
 function gridSnapshot(){
   let pts = [];
   try{ pts = JSON.parse(localStorage.getItem('blindspot-v1')) || []; }catch(e){}
-  return { points: pts, posts: Market.posts };
+  return { points: pts, posts: Market.posts, family: Family.list };
 }
 function rawMergePoints(arr){
   const OK = { camera:1, checkpoint:1, drone:1, safe:1, dead:1 };
@@ -922,10 +1036,20 @@ UN.register('deaddrop', $('dd'), function(){
   async function onData(raw){
     let m; try{ m = typeof raw === 'string' ? JSON.parse(raw) : raw; }catch(e){ return; }
     if (m.t === 'burn') return burnEverything(false);
+    if (m.t === 'sos'){
+      const la = +m.lat, ln = +m.lng;
+      if (isFinite(la) && isFinite(ln)){
+        sysLine('⚠⚠ SOS FROM ' + remoteCallsign + (m.approx ? ' (APPROX POSITION)' : '') + ' — MARKED ON BLINDSPOT ⚠⚠');
+        try{ if (navigator.vibrate) navigator.vibrate([200,100,200,100,400]); }catch(e){}
+        UN.sos(la, ln, remoteCallsign);
+      }
+      return;
+    }
     if (m.t === 'grid'){
       const np = UN.mergePoints ? UN.mergePoints(m.points) : rawMergePoints(m.points);
       const nq = Market.merge(m.posts);
-      sysLine('GRID RECEIVED — MERGED ' + np + ' MAP POINTS, ' + nq + ' POSTINGS');
+      const nf = Family.merge(m.family);
+      sysLine('GRID RECEIVED — MERGED ' + np + ' MAP POINTS, ' + nq + ' POSTINGS, ' + nf + ' FAMILY MEMBERS');
       if (!m.re && conn && conn.open){
         conn.send(JSON.stringify({ t:'grid', re:true, ...gridSnapshot() }));
         sysLine('GRID SENT BACK — BOTH DEVICES NOW CARRY THE SAME INTEL');
@@ -957,6 +1081,20 @@ UN.register('deaddrop', $('dd'), function(){
   $('remote-id').addEventListener('keydown', e => { if (e.key === 'Enter') dial(); });
   $('send-btn').addEventListener('click', send);
   $('msg-input').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  $('sos-btn').addEventListener('click', () => {
+    if (!conn || !conn.open) return toast('NO LINK — SOS NEEDS A CONNECTED PEER');
+    const fire = (lat, lng, approx) => {
+      conn.send(JSON.stringify({ t:'sos', lat, lng, approx, who: myCallsign }));
+      sysLine('⚠ SOS TRANSMITTED WITH YOUR POSITION' + (approx ? ' (APPROXIMATE)' : ''));
+    };
+    if (navigator.geolocation){
+      toast('ACQUIRING POSITION…');
+      navigator.geolocation.getCurrentPosition(
+        p => fire(+p.coords.latitude.toFixed(6), +p.coords.longitude.toFixed(6), false),
+        () => fire(38.8315, -77.3119, true),
+        { timeout: 5000 });
+    } else fire(38.8315, -77.3119, true);
+  });
   $('syncgrid').addEventListener('click', () => {
     if (!conn || !conn.open) return;
     const snap = gridSnapshot();
@@ -1469,6 +1607,55 @@ UN.register('ration', $('rt'), function(){
    MODULE: BLINDSPOT
 ====================================================================== */
 /* ======================================================================
+   MODULE: FAMILY — the people you survive with, and what they carry
+====================================================================== */
+UN.register('family', $('fm'), function(){
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let editId = null;
+  function render(){
+    $('fm-list').innerHTML = Family.list.map(m => {
+      const sc = m.status === 'OK' ? 'var(--ok)' : m.status === 'INJURED' ? 'var(--warn)' : 'var(--accent)';
+      return '<div class="fmcard" data-id="' + esc(m.id) + '">' +
+        '<div><span class="fmname">' + esc(m.name) + '</span>' +
+        '<span class="fmrole">' + esc(m.role) + '</span>' +
+        '<span class="fmstatus" style="color:' + sc + ';border-color:' + sc + '">' + esc(m.status) + '</span></div>' +
+        '<div class="fmcarries">carries: ' + esc(m.carries || '—') + '</div>' +
+        '<span class="fmact" data-act="edit">[ EDIT ]</span><span class="fmact" data-act="del">[ REMOVE ]</span>' +
+        '</div>';
+    }).join('') || '<div class="hint">no members yet — add your people.</div>';
+    $('fm-list').querySelectorAll('.fmact').forEach(a => a.addEventListener('click', () => {
+      const id = a.closest('.fmcard').dataset.id;
+      if (a.dataset.act === 'del'){ Family.remove(id); render(); }
+      else openForm(Family.list.find(x => x.id === id));
+    }));
+    $('fm-inv').textContent = Family.list.filter(m => m.carries)
+      .map(m => m.name + ': ' + m.carries).join('  ·  ') || '—';
+  }
+  UN.renderFamily = render;
+  function openForm(m){
+    editId = m ? m.id : null;
+    $('fm-name').value = m ? m.name : '';
+    $('fm-role').value = m ? m.role : 'SCOUT';
+    $('fm-status').value = m ? m.status : 'OK';
+    $('fm-carries').value = m ? m.carries : '';
+    $('fm-form').style.display = 'block';
+    $('fm-name').focus();
+  }
+  $('fm-add').addEventListener('click', () => openForm(null));
+  $('fm-cancel').addEventListener('click', () => $('fm-form').style.display = 'none');
+  $('fm-save').addEventListener('click', () => {
+    const name = $('fm-name').value.trim();
+    if (!name) return toast('NAME REQUIRED');
+    Family.upsert({ id: editId || Date.now() + '-' + Math.random().toString(36).slice(2,5),
+      name: name.slice(0,24), role: $('fm-role').value, status: $('fm-status').value,
+      carries: $('fm-carries').value.trim().slice(0,120) });
+    $('fm-form').style.display = 'none';
+    render();
+  });
+  render();
+});
+
+/* ======================================================================
    MODULE: LANTERN — on-device assistant (rule-based intent engine
    over the local resource map, barter board and ration ledger)
 ====================================================================== */
@@ -1495,6 +1682,8 @@ UN.register('patriot', $('pa'), function(){
   const listOf = ws => ws.map(w => '■ ' + w.name + ' — ' + w.note + ' [' + w.stock + ']').join('\n');
 
   const INTENTS = [
+    ['build',     ['build','construct','tarp','lean-to','lean to','debris hut','make a shelter','set up camp']],
+    ['family',    ['family','crew','team','roster','member','our people','who carries','who is carrying']],
     ['food',      ['food','eat','hungry','meal','kitchen','canteen','bread','starv']],
     ['water',     ['water','thirst','drink']],
     ['meds',      ['med','pharm','doctor','sick','hurt','injur','pill','insulin','antibiot','clinic','health','first aid','wound']],
@@ -1515,13 +1704,21 @@ UN.register('patriot', $('pa'), function(){
     if (best === 'trade'){
       const stop = new Set(['the','and','for','with','need','want','have','who','has','trade','looking','what','where','can','find','some','any','you']);
       const toks = t.split(/[^a-z0-9]+/).filter(x => x.length > 2 && !stop.has(x));
+      const fam = Family.list.filter(m => toks.some(x => (m.carries || '').toLowerCase().includes(x)));
       const hits = Market.posts.filter(p => toks.some(x => (p.offer + ' ' + p.want).toLowerCase().includes(x)));
-      if (hits.length) return R('Matching postings on the board:\n' + hits.slice(0, 4).map(p =>
-        '⇄ ' + p.who + ' offers ' + p.offer + ' · wants ' + p.want + ' · meet @ ' + worldById(p.loc).name).join('\n'),
-        hits.slice(0, 4).map(p => worldById(p.loc)));
+      let out = '';
+      if (fam.length) out += 'In your own family:\n' + fam.map(m =>
+        '⚉ ' + m.name + ' (' + m.role + ', ' + m.status + ') carries: ' + m.carries).join('\n') + '\n\n';
+      if (hits.length) out += 'On the barter board:\n' + hits.slice(0, 4).map(p =>
+        '⇄ ' + p.who + ' offers ' + p.offer + ' · wants ' + p.want + ' · meet @ ' + worldById(p.loc).name).join('\n');
+      if (out) return R(out.trim(), hits.slice(0, 4).map(p => worldById(p.loc)));
       return R('No direct match. The board holds ' + Market.posts.length + ' open postings — scroll down to browse, or broadcast your own offer.', byRole('market'));
     }
     switch (best){
+      case 'build': return R('Open the SHELTER BUILDER below the barter board: pick your conditions and materials, get a step-by-step build plan.\n\nRule of thumb while you scroll: insulation UNDER you matters more than cover above you — the ground steals heat faster than the air.', []);
+      case 'family': return R('YOUR PEOPLE:\n' + Family.list.map(m =>
+        '⚉ ' + m.name + ' — ' + m.role + ' [' + m.status + '] carries: ' + (m.carries || '—')).join('\n') +
+        '\n\nManage the roster in the FAMILY tab. It syncs over DEADDROP so the whole cell knows who holds what.', []);
       case 'food':    return R('Food points, by stock:\n' + listOf(byRole('food')), byRole('food'));
       case 'water':   return R('Water:\n' + listOf(byRole('water')), byRole('water'));
       case 'meds':    return R('Medical:\n' + listOf(byRole('meds')) + '\n\nMED-flagged households get priority — set the flag in the RATION tab.', byRole('meds'));
@@ -1541,14 +1738,84 @@ UN.register('patriot', $('pa'), function(){
     }
     return R('I\'m LANTERN — I run entirely on this device. Try:\n■ where can I eat tonight\n■ who has insulin\n■ I need a ride off campus\n■ how long will our water last\n■ safest route across campus', []);
   }
+  let spoke = false;
   function ask(q){
     if (!q.trim()) return;
     say(q, 'me');
-    setTimeout(() => { const a = answer(q); say(a.text, 'them', a.locs); }, 250);
+    setTimeout(() => {
+      const a = answer(q);
+      say(a.text, 'them', a.locs);
+      /* voice in → voice out */
+      if (spoke && 'speechSynthesis' in window){
+        spoke = false;
+        try{
+          const u = new SpeechSynthesisUtterance(a.text.replace(/[■⚉⇄◆⌂✚◉➤⚠▲]/g, '').replace(/\n+/g, '. '));
+          u.rate = 1.05;
+          speechSynthesis.cancel();
+          speechSynthesis.speak(u);
+        }catch(e){}
+      }
+    }, 250);
   }
+  /* talk to LANTERN: browser speech recognition (Chrome/Edge; falls back gracefully) */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR){
+    const rec = new SR();
+    rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
+    $('pa-mic').addEventListener('click', () => {
+      try{ rec.start(); $('pa-mic').textContent = '●'; $('pa-mic').style.color = 'var(--warn)'; }catch(e){}
+    });
+    rec.onresult = e => { spoke = true; ask(e.results[0][0].transcript); };
+    rec.onend = () => { $('pa-mic').textContent = '🎙'; $('pa-mic').style.color = ''; };
+    rec.onerror = () => { $('pa-mic').textContent = '🎙'; $('pa-mic').style.color = ''; toast('VOICE FAILED — TYPE INSTEAD'); };
+  } else {
+    $('pa-mic').addEventListener('click', () => toast('VOICE NOT SUPPORTED IN THIS BROWSER'));
+  }
+  /* shelter builder: conditions + materials → build plan */
+  function shelterPlan(weather, mat){
+    if (mat === 'none') return ['FIND STRUCTURE — URBAN SALVAGE', [
+      'No materials means don\'t build — find. Parking decks, stairwells and loading docks already block wind and rain.',
+      'Get off the ground: pallets, benches, stacked cardboard. Cold takes you through the floor first.',
+      'Stuff clothing with crumpled paper or dry leaves — dead air is insulation.',
+      'Pick a corner out of the wind line of doorways; corners hold body heat.',
+      'Mark the spot as a SAFE HOUSE on BLINDSPOT so your family can find it.']];
+    if (weather === 'rain' && mat !== 'branches') return ['A-FRAME TARP', [
+      'Run cord tight between two anchors at hip height.',
+      'Tarp over the line, both sides pitched to the ground at about 45°.',
+      'Stake or weight every edge; the opening faces AWAY from the wind.',
+      'Scrape a shallow runoff groove on the uphill side so water routes around you, not through.',
+      'Floor: branches, then debris, then anything soft. Never sleep on bare wet ground.']];
+    if (weather === 'cold') return [mat === 'tarp' ? 'TARP WRAP + DEBRIS' : 'DEBRIS HUT', [
+      'Ridgepole: one strong branch running from the ground up to a waist-high support.',
+      'Rib it with sticks every hand-width — a tent skeleton.',
+      'Pile debris (leaves, needles, grass) an arm\'s length THICK over the ribs. Thickness is warmth.',
+      mat !== 'branches' ? 'Wrap the tarp over the insulation as a vapor shell, weighted at the base.'
+                         : 'Stuff the inside loosely too — you burrow in like a sleeping bag.',
+      'Entrance just big enough to crawl through; plug it behind you with a debris bundle.']];
+    if (weather === 'wind') return ['LOW LEAN-TO', [
+      'Find a windbreak first — wall, fallen log, dense hedge — and build on its calm side.',
+      'Keep the ridgepole LOW, knee to hip height. Low profile beats headroom in wind.',
+      mat === 'branches' ? 'Rib and pack with debris, bottom-up like shingles.'
+                         : 'Rib it, lash the tarp over, and weight the edges hard — flapping tarp is a torn tarp.',
+      'Angle the open face 90° off the wind, not directly downwind — avoids suction eddies.',
+      'Double-thick floor insulation; wind strips ground heat fastest.']];
+    return ['SIMPLE LEAN-TO', [
+      'Ridgepole between two supports at hip height.',
+      'Lean ribs against it at 45°.',
+      mat === 'branches' ? 'Cover with overlapping debris, bottom-up like shingles.'
+                         : 'Cover with the tarp, staked tight at the corners.',
+      'Face the opening east — morning sun is free heat.',
+      'Insulate the floor one body-length deep, and mark the spot on BLINDSPOT if it holds.']];
+  }
+  $('sb-go').addEventListener('click', () => {
+    const plan = shelterPlan($('sb-weather').value, $('sb-mat').value);
+    $('sb-title').textContent = '▲ BUILD: ' + plan[0];
+    $('sb-steps').innerHTML = plan[1].map((s, i) => (i + 1) + '. ' + s).join('<br>');
+    $('sb-out').style.display = 'block';
+  });
   $('pa-send').addEventListener('click', () => { ask($('pa-input').value); $('pa-input').value = ''; });
   $('pa-input').addEventListener('keydown', e => { if (e.key === 'Enter'){ ask($('pa-input').value); $('pa-input').value = ''; } });
-  ['WHERE CAN I EAT?','FIND MEDS','SHELTER TONIGHT','WHO HAS RIDES?','RATION STATUS','SAFEST ROUTE'].forEach(c => {
+  ['WHERE CAN I EAT?','FIND MEDS','SHELTER TONIGHT','WHO HAS RIDES?','RATION STATUS','SAFEST ROUTE','MY FAMILY','BUILD A SHELTER'].forEach(c => {
     const b = document.createElement('button');
     b.className = 'chip-btn'; b.textContent = c;
     b.addEventListener('click', () => ask(c));
@@ -1828,8 +2095,8 @@ UN.register('blindspot', $('bs'), function(){
     }, () => toast('POSITION DENIED — good instinct.'));
   });
   $('export').addEventListener('click', async () => {
-    const data = JSON.stringify({ v:2, points, posts: Market.posts });
-    try { await navigator.clipboard.writeText(data); toast('GRID COPIED — ' + points.length + ' POINTS + ' + Market.posts.length + ' POSTINGS. PASS IT ON.'); }
+    const data = JSON.stringify({ v:3, points, posts: Market.posts, family: Family.list });
+    try { await navigator.clipboard.writeText(data); toast('GRID COPIED — ' + points.length + ' POINTS + ' + Market.posts.length + ' POSTINGS + FAMILY. PASS IT ON.'); }
     catch(e){ $('import-text').value = data; $('bs-overlay').style.display = 'flex'; toast('CLIPBOARD BLOCKED — COPY MANUALLY'); }
   });
   /* shared merge: used by the IMPORT dialog and by DEADDROP's P2P grid sync */
@@ -1855,9 +2122,10 @@ UN.register('blindspot', $('bs'), function(){
       const incoming = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.points) ? raw.points : null);
       if (!incoming) throw 0;
       const nPosts = Array.isArray(raw) ? 0 : Market.merge(raw.posts);
+      const nFam = Array.isArray(raw) ? 0 : Family.merge(raw.family);
       const added = mergePoints(incoming);
       $('bs-overlay').style.display = 'none';
-      toast('MERGED ' + added + ' POINTS, ' + nPosts + ' POSTINGS');
+      toast('MERGED ' + added + ' POINTS, ' + nPosts + ' POSTINGS, ' + nFam + ' FAMILY');
     } catch(e){ toast('BAD GRID DATA'); }
   });
   $('wipe').addEventListener('click', () => {
@@ -2032,6 +2300,17 @@ UN.register('blindspot', $('bs'), function(){
   }
   UN.redrawPosts = redrawPosts;
   redrawPosts();
+
+  /* SOS beacons: flashing distress markers relayed over DEADDROP */
+  UN.sosMark = (lat, lng, who) => {
+    L.marker([lat, lng], { icon: L.divIcon({ className:'', html:'<div class="mark sosmark">⚠</div>',
+      iconSize:[22,22], iconAnchor:[11,11] }) })
+      .addTo(map)
+      .bindPopup('<div class="pp-type" style="color:var(--warn)">⚠ SOS — ' + esc(who) + '</div>' +
+        '<div class="pp-note">' + new Date().toLocaleTimeString() + ' · distress signal received over DEADDROP</div>');
+    map.setView([lat, lng], 17);
+  };
+  UN.pendingSOS.splice(0).forEach(a => UN.sosMark(a[0], a[1], a[2]));
 }, function onShow(){
   // Leaflet needs a size recalc whenever the tab becomes visible
   if (bsMap) setTimeout(() => bsMap.invalidateSize(), 60);
