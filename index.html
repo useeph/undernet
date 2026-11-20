@@ -747,6 +747,7 @@ const Market = {
     this.posts.unshift(p); this.save();
     if (UN.redrawPosts) UN.redrawPosts();
     if (UN.renderBoard) UN.renderBoard();
+    UN.live({ post: p });
   },
   merge(arr){
     const have = new Set(this.posts.map(p => p.id));
@@ -798,6 +799,9 @@ const Family = {
   }
 };
 Family.load();
+/* live channel: DEADDROP installs a sender here when a peer is linked;
+   new markers and postings stream to the other device in real time */
+UN.live = () => {};
 /* SOS relay: a distress call lands on the map even if BLINDSPOT isn't open yet */
 UN.pendingSOS = [];
 UN.sos = (lat, lng, who) => {
@@ -1080,6 +1084,15 @@ UN.register('deaddrop', $('dd'), function(){
       }
       return;
     }
+    if (m.t === 'live'){
+      /* real-time incremental update from the linked peer */
+      if (m.point){
+        const n = UN.mergePoints ? UN.mergePoints([m.point]) : rawMergePoints([m.point]);
+        if (n) toast('⌖ LIVE — ' + remoteCallsign + ' MARKED THE MAP');
+      }
+      if (m.post && Market.merge([m.post])) toast('⇄ LIVE — NEW POSTING FROM ' + remoteCallsign);
+      return;
+    }
     if (m.t === 'grid'){
       const np = UN.mergePoints ? UN.mergePoints(m.points) : rawMergePoints(m.points);
       const nq = Market.merge(m.posts);
@@ -1116,6 +1129,10 @@ UN.register('deaddrop', $('dd'), function(){
   $('remote-id').addEventListener('keydown', e => { if (e.key === 'Enter') dial(); });
   $('send-btn').addEventListener('click', send);
   $('msg-input').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  /* install the live channel: anything added locally streams to the linked peer */
+  UN.live = obj => {
+    try{ if (conn && conn.open) conn.send(JSON.stringify({ t:'live', ...obj })); }catch(e){}
+  };
   $('sos-btn').addEventListener('click', () => {
     if (!conn || !conn.open) return toast('NO LINK — SOS NEEDS A CONNECTED PEER');
     const fire = (lat, lng, approx) => {
@@ -2040,7 +2057,7 @@ UN.register('blindspot', $('bs'), function(){
   }
   function addPoint(p, quiet){
     points.push(p); drawPoint(p);
-    if (!quiet){ save(); refreshStats(); }
+    if (!quiet){ save(); refreshStats(); UN.live({ point: p }); }
   }
   function refreshStats(){
     const c = t => points.filter(p => p.t === t).length;
