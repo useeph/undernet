@@ -188,6 +188,8 @@
   #rt button{margin-top:10px;margin-right:6px}
   #rt .rationlevel{font-family:var(--display);font-size:26px;letter-spacing:2px}
   #rt .tablewrap{overflow-x:auto}
+  #rt .stockedit{width:84px;padding:2px 4px;font-size:11px;background:var(--panel);
+    border:1px solid var(--purple-dim);color:var(--accent);text-align:right;display:inline-block}
 
   /* ---------- BLINDSPOT ---------- */
   #bs #stats{display:flex;gap:12px;font-size:10px;color:var(--purple);padding:8px 14px 0;flex-wrap:wrap}
@@ -465,34 +467,49 @@
   <div class="pagewrap"><div class="pageinner wide">
 
     <div class="box">
+      <div class="pp-type" style="font-size:15px" id="rt-verdict">—</div>
+      <div class="hint" id="rt-verdict2" style="margin-top:4px;color:var(--text)"></div>
+    </div>
+
+    <div class="box">
+      <h2>&gt; HOW IT WORKS</h2>
+      <div class="hint">
+        1 — Tell it what you HAVE: tap the <span class="accent">STOCK</span> number on any supply card below and type yours.<br>
+        2 — Tell it who it feeds: edit <span class="accent">PEOPLE / KIDS / MED</span> in the household list (MED = 4× medicine priority).<br>
+        3 — Done. It splits everything fairly, live. Use the sliders to stress-test tomorrow.
+      </div>
+    </div>
+
+    <div class="box">
       <h2>&gt; SECTOR 7 — SUPPLY STATUS <span class="hint" style="float:right" id="pop"></span></h2>
       <div class="tiles" id="tiles"></div>
     </div>
 
     <div class="box">
-      <h2>&gt; SCENARIO CONTROLS</h2>
+      <h2>&gt; STRESS TEST — try tomorrow before it happens</h2>
       <div class="controls">
         <div>
-          <label>PLANNING HORIZON — stretch stock across <span class="ctlval" id="hz-v">14</span> DAYS</label>
+          <label>MAKE SUPPLIES LAST — target <span class="ctlval" id="hz-v">14</span> DAYS (rations shrink to hit this)</label>
           <input type="range" id="hz" min="3" max="30" value="14">
         </div>
         <div>
-          <label>SUPPLY SHOCK — raid / spoilage / loss: <span class="ctlval" id="shock-v">0%</span></label>
+          <label>DISASTER TEST — what if we suddenly lost <span class="ctlval" id="shock-v">0%</span> of stock?</label>
           <input type="range" id="shock" min="0" max="60" value="0">
         </div>
         <div>
-          <label>NEW ARRIVALS — refugees admitted: <span class="ctlval" id="arrivals-v">0</span> PEOPLE</label>
+          <label>NEW ARRIVALS — what if we took in <span class="ctlval" id="arrivals-v">0</span> MORE PEOPLE?</label>
           <input type="range" id="arrivals" min="0" max="40" value="0">
         </div>
       </div>
     </div>
 
     <div class="box">
-      <h2>&gt; TODAY'S ALLOCATION ORDER</h2>
+      <h2>&gt; TODAY'S SHARES — what each household collects</h2>
+      <div class="hint" style="margin-bottom:8px">Tap any number to edit — every share recomputes instantly, and everyone gets the same math.</div>
       <div class="tablewrap">
         <table id="alloc-table">
           <thead>
-            <tr><th>HOUSEHOLD</th><th>PPL</th><th>CHILD</th><th>MED</th>
+            <tr><th>HOUSEHOLD</th><th>PEOPLE</th><th>KIDS</th><th>MED?</th>
                 <th style="text-align:right">WATER (L)</th><th style="text-align:right">FOOD (kcal)</th>
                 <th style="text-align:right">MEDS (dose)</th><th style="text-align:right">POWER (kWh)</th></tr>
           </thead>
@@ -1463,6 +1480,15 @@ UN.register('ration', $('rt'), function(){
     { key:'meds',  name:'MEDICINE', unit:'dose', stock:340,  rate:0.2,  childFactor:1,   medMult:4 },
     { key:'power', name:'POWER',  unit:'kWh',  stock:410,    rate:0.8,  childFactor:1,   medMult:1 },
   ];
+  /* stock is editable and remembered on this device */
+  try{
+    const s = JSON.parse(localStorage.getItem('undernet-ration-stock'));
+    if (s) resources.forEach(r => { if (typeof s[r.key] === 'number' && s[r.key] >= 0) r.stock = s[r.key]; });
+  }catch(e){}
+  function saveStock(){
+    try{ localStorage.setItem('undernet-ration-stock',
+      JSON.stringify(Object.fromEntries(resources.map(r => [r.key, r.stock])))); }catch(e){}
+  }
   let households = [
     { name:'ASHFORD', people:4, children:2, med:false },
     { name:'OKONKWO', people:2, children:0, med:true  },
@@ -1536,16 +1562,35 @@ UN.register('ration', $('rt'), function(){
       return '<div class="tile">' +
         '<div class="rname">' + d.r.name + '</div>' +
         '<div class="days">' + (isFinite(d.days) ? d.days.toFixed(1) : '∞') + '</div>' +
-        '<div class="unit">DAYS OF SUPPLY · ' + fmt(d.stock, d.r.unit) + ' ' + d.r.unit + ' on hand</div>' +
+        '<div class="unit">DAYS LEFT · STOCK: <input class="stockedit" data-k="' + d.r.key + '" type="number" min="0" value="' + Math.round(d.r.stock) + '"> ' + d.r.unit + ' ✎</div>' +
         '<span class="chip ' + st[0] + '">' + st[1] + '</span>' +
-        '<div class="unit" style="margin-top:6px">RATION LEVEL <span class="rationlevel" style="color:' +
+        '<div class="unit" style="margin-top:6px">EVERYONE GETS <span class="rationlevel" style="color:' +
           (d.factor < 0.6 ? 'var(--warn)' : d.factor < 0.9 ? 'var(--accent)' : 'var(--ok)') + '">' +
-          Math.round(d.factor*100) + '%</span> of full need</div>' +
+          Math.round(d.factor*100) + '%</span> OF FULL NEED</div>' +
         '<div class="stockbar" title="stock remaining vs original"><i style="width:' + pct + '%"></i></div>' +
         (fc ? fc.svg + '<div class="unit">FORECAST: dry ' + fc.fdate(fc.dry) +
           ' · worst ' + fc.fdate(fc.early) + ' / best ' + fc.fdate(fc.late) + '</div>' : '') +
         '</div>';
     }).join('');
+    /* editable stock */
+    $('tiles').querySelectorAll('.stockedit').forEach(inp => {
+      inp.addEventListener('change', () => {
+        const r = resources.find(x => x.key === inp.dataset.k);
+        r.stock = Math.max(0, parseFloat(inp.value) || 0);
+        saveStock(); render();
+      });
+    });
+    /* bottom line, in words */
+    const worst = data.reduce((a, b) => b.days < a.days ? b : a);
+    const wst = statusOf(worst.days);
+    $('rt-verdict').innerHTML = '⚑ SCARCEST SUPPLY: <span style="color:' +
+      (wst[0] === 'critical' ? 'var(--warn)' : wst[0] === 'caution' ? 'var(--accent)' : 'var(--ok)') + '">' +
+      worst.r.name + ' — ' + (isFinite(worst.days) ? worst.days.toFixed(1) : '∞') + ' DAYS LEFT</span>';
+    const hz = parseInt($('hz').value, 10);
+    const rationed = data.filter(d => d.factor < 1);
+    $('rt-verdict2').textContent = rationed.length ?
+      'To last ' + hz + ' days, rations are cut: ' + rationed.map(d => d.r.name + ' → ' + Math.round(d.factor * 100) + '%').join(' · ') + '. Add stock, or lower the target.' :
+      'All supplies cover the ' + hz + '-day target at full ration. Surplus? Trade it on the barter board.';
     const maxAmt = {};
     data.forEach(d => maxAmt[d.r.key] = Math.max(...d.alloc.map(a => a.amt), 1));
     const hhs = data[0].alloc.map(a => a.hh);
