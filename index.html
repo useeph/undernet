@@ -241,6 +241,11 @@
   #pa .post .poffer{color:#fff;font-size:12px}
   #pa .post .pwant{color:var(--accent);margin-top:2px}
   #pa .post .pmeta{color:var(--purple);font-size:10px;margin-top:4px}
+  #pa .post .pacts{margin-top:6px}
+  #pa .post .pact{color:var(--ok);cursor:pointer;font-size:10px;letter-spacing:1px;
+    text-decoration:underline;margin-right:8px}
+  #pa .post .pstat{color:var(--accent);border:1px solid var(--accent);font-size:9px;
+    letter-spacing:1px;padding:1px 5px}
   /* ---------- FAMILY ---------- */
   #fm .fmcard{border:1px solid var(--purple-dim);background:var(--bg);padding:10px 12px;margin-bottom:8px;
     font-size:13px;line-height:1.6}
@@ -744,21 +749,44 @@ const Market = {
   save(){ try{ localStorage.setItem('undernet-market-v1', JSON.stringify(this.posts)); }catch(e){} },
   add(p){
     p.id = Date.now() + '-' + Math.random().toString(36).slice(2,6);
+    p.ts = Date.now();
+    p.status = 'OPEN';
+    p.contact = UN.myCallsign || null;   // so others can dial the poster while they're online
     this.posts.unshift(p); this.save();
     if (UN.redrawPosts) UN.redrawPosts();
     if (UN.renderBoard) UN.renderBoard();
     UN.live({ post: p });
   },
+  claim(id, by){
+    const p = this.posts.find(x => x.id === id);
+    if (!p || p.status === 'CLAIMED') return false;
+    p.status = 'CLAIMED';
+    p.claimedBy = String(by || 'UNKNOWN').slice(0,24);
+    p.ts = Date.now();
+    this.save();
+    if (UN.redrawPosts) UN.redrawPosts();
+    if (UN.renderBoard) UN.renderBoard();
+    UN.live({ post: p });
+    return true;
+  },
   merge(arr){
-    const have = new Set(this.posts.map(p => p.id));
     let n = 0;
     for (const p of (arr || [])){
-      if (!p || !p.id || have.has(String(p.id)) || typeof p.offer !== 'string') continue;
-      this.posts.push({ id:String(p.id), who:String(p.who || 'UNKNOWN').slice(0,24),
+      if (!p || !p.id || typeof p.offer !== 'string') continue;
+      const id = String(p.id);
+      const clean = { id, who:String(p.who || 'UNKNOWN').slice(0,24),
         type: p.type === 'transport' ? 'transport' : p.type === 'work' ? 'work' : 'trade',
         offer:String(p.offer).slice(0,90), want:String(p.want || '').slice(0,90),
-        loc: WORLD.some(w => w.id === p.loc) ? p.loc : 'horizon' });
-      n++;
+        loc: WORLD.some(w => w.id === p.loc) ? p.loc : 'horizon',
+        ts: +p.ts || 0,
+        status: p.status === 'CLAIMED' ? 'CLAIMED' : 'OPEN',
+        claimedBy: p.claimedBy ? String(p.claimedBy).slice(0,24) : null,
+        contact: (typeof p.contact === 'string' && /^[A-Z0-9-]{3,24}$/i.test(p.contact)) ? p.contact.toUpperCase() : null };
+      const ex = this.posts.find(x => x.id === id);
+      if (ex){
+        /* newer version wins: this is how a CLAIM propagates through the network */
+        if (clean.ts > (+ex.ts || 0)){ Object.assign(ex, clean); n++; }
+      } else { this.posts.push(clean); n++; }
     }
     if (n){ this.save(); if (UN.redrawPosts) UN.redrawPosts(); if (UN.renderBoard) UN.renderBoard(); }
     return n;
@@ -1132,6 +1160,15 @@ UN.register('deaddrop', $('dd'), function(){
   /* install the live channel: anything added locally streams to the linked peer */
   UN.live = obj => {
     try{ if (conn && conn.open) conn.send(JSON.stringify({ t:'live', ...obj })); }catch(e){}
+  };
+  UN.myCallsign = myCallsign;
+  /* dial a poster from the barter board */
+  UN.dial = cs => {
+    UN.show('deaddrop');
+    $('remote-id').value = String(cs).toUpperCase();
+    if (conn) toast('ALREADY LINKED — BURN OR CLOSE THAT LINK FIRST');
+    else if (peer && !$('connect-btn').disabled) dial();
+    else toast('STILL REGISTERING — TAP CONNECT IN A MOMENT');
   };
   $('sos-btn').addEventListener('click', () => {
     if (!conn || !conn.open) return toast('NO LINK — SOS NEEDS A CONNECTED PEER');
@@ -1926,14 +1963,30 @@ UN.register('patriot', $('pa'), function(){
   function renderBoard(){
     $('pa-posts').innerHTML = Market.posts.map(p => {
       const w = worldById(p.loc);
-      return '<div class="post">' +
+      const claimed = p.status === 'CLAIMED';
+      return '<div class="post" data-id="' + esc(p.id) + '"' + (claimed ? ' style="opacity:.65"' : '') + '>' +
         '<div class="thumb"><span class="ptype">' + postLabel(p) + '</span>' + postEmoji(p) + '</div>' +
         '<div class="pbody">' +
         '<div class="poffer">' + esc(p.offer) + '</div>' +
         '<div class="pwant">⇄ ' + esc(p.want) + '</div>' +
         '<div class="pmeta">' + esc(p.who) + ' · ' + w.name.split(' (')[0] + '</div>' +
-        '</div></div>';
+        '<div class="pacts">' +
+        (claimed
+          ? '<span class="pstat">✓ CLAIMED' + (p.claimedBy ? ' BY ' + esc(p.claimedBy) : '') + '</span>'
+          : '<span class="pact" data-act="claim">[ CLAIM ]</span>' +
+            (p.contact ? '<span class="pact" data-act="contact">[ CONTACT ]</span>' : '')) +
+        '</div></div></div>';
     }).join('');
+    $('pa-posts').querySelectorAll('.pact').forEach(a => a.addEventListener('click', () => {
+      const p = Market.posts.find(x => x.id === a.closest('.post').dataset.id);
+      if (!p) return;
+      if (a.dataset.act === 'claim'){
+        if (Market.claim(p.id, UN.myCallsign || $('pa-who').value.trim() || 'UNKNOWN'))
+          toast('CLAIMED — THE NETWORK SEES IT ON NEXT SYNC');
+      } else if (a.dataset.act === 'contact' && UN.dial){
+        UN.dial(p.contact);
+      }
+    }));
   }
   UN.renderBoard = renderBoard;
   renderBoard();
